@@ -13,4 +13,9 @@ Data source: [SMARD](https://www.smard.de/home/downloadcenter/download-marktdate
 - Resolution: 1h
 - Timewindow: from 2015-01-01 to 2024-09-07
 
+Put all dowloaded files into:
 
+    /example/dataset
+
+Check the [forecast.Rmd](example/forecast.Rmd) file to see how you can run
+this code on your dataset.
