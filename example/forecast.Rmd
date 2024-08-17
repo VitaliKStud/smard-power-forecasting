@@ -37,6 +37,8 @@ holiday_to_filter <- as.Date(german_holidays$date)
 
 ```
 
+
+
 ```{r, echo=TRUE, message=FALSE}
 
 # Datensatz zum VERBRAUCH laden
