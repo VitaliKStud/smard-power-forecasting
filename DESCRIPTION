@@ -1,0 +1,14 @@
+Package: smardforecasting
+Type: Package
+Title: Forecasting German Energy Generation and Consumption
+Version: 1.0
+Date: 2024-08-17
+Authors@R: c(
+  person("Vitali", "Krilov", email = "no-email@example.com", role = c("aut", "cre"))
+  )
+Depends: R(>= 4.4.0)
+Description: This package helps to forecast German power consumption and power generation.
+License: MIT
+LazyData: no
+LazyLoad: no
+RoxygenNote: 7.3.2
