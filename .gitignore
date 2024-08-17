@@ -1,6 +1,8 @@
 # data
 dataset/
 
+.idea
+
 # History files
 .Rhistory
 .Rapp.history
