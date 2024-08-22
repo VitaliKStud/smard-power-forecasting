@@ -21,7 +21,9 @@ library(timeDate)
 library(qlcal)
 library(lubridate)
 library(devtools)
+library(zoo)
 load_all()
+# devtools::document()
 ```
 
 
@@ -29,170 +31,273 @@ load_all()
 
 - Erwähnen von Saisonallen Pattern für stündliche Daten meisten Täglich, Wöchentlich und jährlich
 
+# Define data-paths
+
+```{r, echo=TRUE, message=FALSE}
+
+# Define your datapaths
+
+power_consum_path <- "dataset\\stunde_2015_2024\\Realisierter_Stromverbrauch_201501010000_202407090000_Stunde.csv"
+power_generation_path <- "dataset\\stunde_2015_2024\\Realisierte_Erzeugung_201501010000_202407090000_Stunde.csv"
+
+```
+
+# Load holidays
+
 ```{r, echo=TRUE, message=FALSE}
 
 # Load german holidays from 2015 to 2024
 german_holidays <- load_german_holidays(from_year = 2015, to_year = 2024)
-holiday_to_filter <- as.Date(german_holidays$date)
 
 ```
 
-
+# Load and cleanup power-consum 
 
 ```{r, echo=TRUE, message=FALSE}
 
-# Datensatz zum VERBRAUCH laden
-e_consum <- read.csv2(file = "dataset\\stunde_2015_2024\\Realisierter_Stromverbrauch_201501010000_202407090000_Stunde.csv")
+# Load Data
+power_consum <- read.csv2(file = power_consum_path)
 
-# Spalten umbenennen
-names(e_consum) <- c("DatumVon",
-                     "DatumBis",
-                     "Netzlast",
-                     "Residuallast",
-                     "Pumpspeicher")
+# Rename Columns
+names(power_consum) <- c("DateFrom",
+                         "DateTo",
+                         "GridLoad",
+                         "ResidualLoad",
+                         "PumpedStorage")
 
-# Zählen von fehlenden Werten
-total_na <- sum(is.na(e_consum))
-
-# Datensatz ins richtige Format brignen und wenn notwendig filtern
-load_e_consum <- function(filter = FALSE) {
-  e_consum <- e_consum |>
-    mutate(
-      DatumVon = dmy_hm(DatumVon),
-      DatumBis = dmy_hm(DatumBis),
-      DatumIndex = DatumVon
-    ) |>
-    group_by(DatumIndex) |>
-    slice(1) |>
-    ungroup() |>
-    mutate(
-      Netzlast = as.numeric(gsub(",", ".", gsub(
-        "\\.", "", Netzlast
-      ))),
-      Residuallast = as.numeric(gsub(",", ".", gsub(
-        "\\.", "", Residuallast
-      ))),
-      Pumpspeicher = as.numeric(gsub(",", ".", gsub(
-        "\\.", "", Pumpspeicher
-      ))),
-    ) |>
-    as_tsibble(index = DatumIndex) |>
-    select(DatumVon, DatumBis, Netzlast, Residuallast, Pumpspeicher) |>
-    fill_gaps()
+# Drop duplicates and keep first value
+power_consum <- power_consum |> distinct(DateFrom, .keep_all=TRUE)
   
-  if (filter) {
-    e_consum <- e_consum |>
-      filter(year(DatumIndex) >= 2015 & year(DatumIndex) <= 2016)
-  }
-  return(e_consum)
+# Clean  power consumption
+load_power_consum <- function(power_consum) {
+  power_consum <- power_consum |>
+    distinct(DateFrom, .keep_all=TRUE) |>
+    mutate(
+      DateFrom = dmy_hm(DateFrom),
+      DateTo = dmy_hm(DateTo),
+      DateIndex = DateFrom
+    ) |>
+    mutate(
+      GridLoad = as.numeric(gsub(",", ".", gsub(
+        "\\.", "", GridLoad
+      ))),
+      ResidualLoad = as.numeric(gsub(",", ".", gsub(
+        "\\.", "", ResidualLoad
+      ))),
+      PumpedStorage = as.numeric(gsub(",", ".", gsub(
+        "\\.", "", PumpedStorage
+      ))),
+    ) |>
+    as_tsibble(index = DateIndex) |>
+    select(DateFrom, DateTo, GridLoad, ResidualLoad, PumpedStorage) |>
+    fill_gaps() |>
+    fill(GridLoad, ResidualLoad, PumpedStorage, .direction="downup") 
+  return(power_consum)
 }
-e_consum <- load_e_consum(filter = FALSE)
+power_consum <- load_power_consum(power_consum)
 
-# Lambda ermitteln und rausholen
-lambda <- e_consum |>
-  features(Netzlast, features = guerrero) |>
-  pull(lambda_guerrero)
+# Count NA values and duplicates
+print(paste("Missing Timestamps: ", sum(is.na(power_consum$DateIndex))))
+print(paste("Missing Grid Load Value: ", sum(is.na(power_consum$GridLoad))))
+print(paste("Duplicated Timestamps: ", sum(duplicated(power_consum$DateIndex))))
 
-e_consum_transformed <- e_consum |>
-  mutate(Transformed = box_cox(Netzlast, lambda))
+# Plot ACF PACF
+power_consum |>
+  gg_tsdisplay(GridLoad, plot_type = "partial", lag = 168)
 
-e_consum_transformed |>
-  features(difference(Netzlast, lag = 168), unitroot_nsdiffs)
-
-e_consum_transformed |>
-  features(difference(difference(Netzlast, lag = 168), differences = 1), unitroot_ndiffs)
-
-e_consum_transformed <- e_consum_transformed |>
-  mutate(Netzlast = difference(difference(Netzlast, lag = 168), differences =
-                                 1))
-
-e_consum_transformed |>
-  gg_tsdisplay(Netzlast, plot_type = "partial", lag = 168)
-
-# Plot
-autoplot(e_consum, Netzlast) +
-  theme_minimal()
-
-
-elec <- e_consum |>
-  mutate(
-    Wochentag = wday(DatumVon, label = TRUE),
-    Arbeitstag = !Holiday & !(DOW %in% c("Sat", "Sun")),
-  )
-  
 ```
+
+# Generate new Variables
+```{r, echo=TRUE, message=FALSE}
+
+german_holidays$date <- as.Date(german_holidays$date)
+german_holidays <- german_holidays |> 
+  select(localName, date)
+
+filtered_power_consum <- power_consum |>
+  mutate(
+    Wochentag = wday(DateIndex, label = TRUE),  
+    Date = as.Date(DateIndex),
+    Year = as.factor(year(DateIndex)),
+    Hour = as.factor(hour(DateIndex)),
+  ) |>
+  left_join(german_holidays, by = c("Date" = "date")) |>
+  mutate(
+    Arbeitstag = !(Date %in% german_holidays$date | Wochentag %in% c("Sa", "So")),
+    Mo = Wochentag == "Mo",
+    Di = Wochentag == "Di",  
+    Mi = Wochentag == "Mi",  
+    Do = Wochentag == "Do",  
+    Fr = Wochentag == "Fr",  
+    Sa = Wochentag == "Sa",  
+    So = Wochentag == "So",
+    LastTwoDaysWasHoliday = lag(Arbeitstag, n=24),
+    GridLoad = log(GridLoad)
+  ) 
+
+filtered_power_consum$localName[is.na(filtered_power_consum$localName)] = "Working-Day"
+
+filtered_power_consum$MeanLastWeek <- rollapply(filtered_power_consum$GridLoad, width = 24*7, FUN = function(x) mean(x[1:(24*7-1)]), align = "right", fill = NA)
+
+filtered_power_consum$MeanLastTwoDays <- rollapply(filtered_power_consum$GridLoad, width = 24*2, FUN = function(x) mean(x[1:(24*2-1)]), align = "right", fill = NA)
+
+filtered_power_consum$MaxLastOneDay <- rollapply(filtered_power_consum$GridLoad, width = 24*1, FUN = function(x) max(x[1:(24*1-1)]), align = "right", fill = NA)
+
+filtered_power_consum$MinLastOneDay <- rollapply(filtered_power_consum$GridLoad, width = 24*1, FUN = function(x) min(x[1:(24*1-1)]), align = "right", fill = NA)
+
+
+cor(filtered_power_consum[sapply(filtered_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
+```
+
+
+
+# Create different Plot for analysis
 
 ```{r, echo=TRUE, message=FALSE}
 
+local_name_colors <- c(
+  "Christi Himmelfahrt" = "#E69F00", 
+  "Erster Weihnachtstag" = "#E69F00",  
+  "Karfreitag" = "#E69F00", 
+  "Neujahr" = "#E69F00",
+  "Ostermontag" = "#E69F00",
+  "Pfingstmontag" = "#E69F00",
+  "Reformationstag" = "#E69F00",
+  "Tag der Arbeit" = "#E69F00",
+  "Tag der Deutschen Einheit" = "#E69F00",
+  "Zweiter Weihnachtstag" = "#E69F00",
+  "Working-Day" = "darkgrey"
+)
 
-elec <- e_consum %>%
-  mutate(
-    Wochentag = wday(DatumVon, label = TRUE),  
-    Date = as.Date(DatumVon),
-    Year = as.factor(year(Date)),
-    Arbeitstag = !(Date %in% holiday_to_filter | Wochentag %in% c("Sa", "So"))
-    ) |>
-  filter(Year=="2015" |Year == "2016")
+week_colors <- c(
+  "Mo" = "darkgrey",
+  "Di" = "darkgrey",
+  "Mi" = "darkgrey",
+  "Do" = "darkgrey",
+  "Fr" = "darkgrey",
+  "Sa" = "#E69F00",
+  "So" = "#E69F00"
+)
 
-elec |>
-  ggplot(aes(x=Year, y=Netzlast, col=Arbeitstag)) +
-  geom_boxplot()
-  
+working_colors <- c(
+  "TRUE" = "darkgrey",
+  "FALSE" = "#E69F00"
+)
+plot_by_group(filtered_power_consum, 
+              group_name = "localName",
+              file_name = "holidays.png",
+              colors = local_name_colors,
+              title = "Arbeitstage"
+              )
 
-fit <- elec |>
+plot_by_group(filtered_power_consum, 
+              group_name = "Wochentag",
+              file_name = "week.png",
+              colors = week_colors,
+              title = "Wochentage")
+
+plot_by_group(filtered_power_consum, 
+              group_name = "Arbeitstag",
+              file_name = "working_days.png",
+              colors = working_colors,
+              title = "Arbeitstage")
+
+plot_by_group(filtered_power_consum, 
+              group_name = "LastTwoDaysWasHoliday",
+              file_name = "last_two_days_holiday.png",
+              colors = working_colors,
+              title = "Arbeitstage")
+
+plot_by_column(df=filtered_power_consum,
+               x="Hour",
+               y="GridLoad",
+               x_label="Hour",
+               y_label="Grid Load",
+               file_name="hour.png",
+               title="Hour")
+
+plot_by_column(df=filtered_power_consum,
+               x="Year",
+               y="GridLoad",
+               x_label="Year",
+               y_label="Grid Load",
+               file_name="year.png",
+               title="Year")
+```
+
+# Fit
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- filtered_power_consum |>
+  filter(year(DateIndex) < 2018) |>
   fill_gaps() |>
   model(
-    ARIMA(Netzlast ~ PDQ(0, 0, 0) + pdq(d = 0) + Arbeitstag +
-          fourier(period = "day", K = 10) +
+    ARIMA(GridLoad ~ PDQ(0, 0, 0) + pdq(d = 0) + Arbeitstag +
+            Mo + Di + Mi + Do + Fr + Sa + So + MeanLastWeek + 
+            MeanLastTwoDays + MaxLastOneDay + MinLastOneDay +
+            LastTwoDaysWasHoliday +
+          fourier(period = "day", K = 12) +
           fourier(period = "week", K = 5) +
-          fourier(period = "year", K = 3))
+          fourier(period = "year", K = 2))
   )
-
 
 ```
 
-```{r, echo=TRUE, message=FALSE}
 
-
-elec <- e_consum %>%
-  mutate(
-    Wochentag = wday(DatumVon, label = TRUE),  
-    Date = as.Date(DatumVon),
-    Year = as.factor(year(Date)),
-    Arbeitstag = !(Date %in% holiday_to_filter | Wochentag %in% c("Sa", "So"))
-    ) |>
-  filter(Year=="2015" |Year == "2016")
-
-elec |>
-  ggplot(aes(x=Year, y=Netzlast, col=Wochentag)) +
-  geom_boxplot()
-  
-
-
-```
 
 ```{r, echo=TRUE, message=FALSE}
 
-data_2016 <- e_consum |>
-  filter(year(DatumVon) == 2017) |>
-  filter(month(DatumVon) == 1) |>
-  filter(day(DatumVon) > 0)
+days_to_forecast <- 7
 
-elec_newdata <- new_data(elec, 30*24) |>
-  mutate(
-    Date = as.Date(DatumIndex),
-    Wochentag = wday(Date, label = TRUE),  
-    Arbeitstag = !(Date %in% holiday_to_filter | Wochentag %in% c("Sa", "So"))
-  )
+all.vars(fit)
+
+test <- filtered_power_consum |>
+  filter(year(DateIndex) == 2018) |>
+  filter(month(DateIndex) == 1) |>
+  filter(day(DateIndex) < days_to_forecast) |>
+  select(Arbeitstag,
+         Mo,
+         Di,
+         Mi,
+         Do,
+         Fr,
+         Sa,
+         So,
+         MeanLastWeek,
+         MeanLastTwoDays,
+         MaxLastOneDay,
+         MinLastOneDay,
+         LastTwoDaysWasHoliday) |>
+  fill_gaps()
+
+data_2016 <- filtered_power_consum |>
+  filter((year(DateIndex) == 2017 & month(DateIndex) == 12 & day(DateIndex) > 20) | 
+         (year(DateIndex) == 2018 & month(DateIndex) == 1 & day(DateIndex) < days_to_forecast)) |>
+  mutate(GridLoad = exp(GridLoad))
+
 
 fc <- fit |>
-  forecast(new_data = elec_newdata)
+  forecast(new_data = test) |>
+  mutate(.mean = exp(.mean),
+         GridLoad = exp(GridLoad))
+
+results <- data_2016 |>
+  select(DateIndex, GridLoad) |>
+  rename(Actual = GridLoad) |>
+  right_join(fc, by = "DateIndex") |> 
+  rename(Forecast = .mean)
+
+rmse <- sqrt(mean((results$Actual - results$Forecast)^2, na.rm = TRUE))
+mape <- mean(abs((results$Actual - results$Forecast) / results$Actual), na.rm = TRUE) * 100
+mae <- mean(abs(results$Actual - results$Forecast), na.rm = TRUE)
+
 
 
 fc |>
-  autoplot(elec |> tail(30 * 24)) + 
+  autoplot() + 
   geom_line(data = data_2016,
-  aes(x = DatumVon, y = Netzlast, color ="Testdatensatz"))
+  aes(x = DateIndex, y = GridLoad, color ="Testdatensatz"))
 
 fit |> gg_tsresiduals()
 
