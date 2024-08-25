@@ -22,14 +22,14 @@
 #' @importFrom dplyr bind_rows mutate group_by slice ungroup filter
 #' @export
 
-load_german_holidays <- function(from_year, to_year) {
+load_german_holidays <- function(from_year, to_year, location) {
   all_holidays <- list()
   
   for (year in from_year:to_year) {
     hol <- httr::GET(paste0(
       "https://date.nager.at/api/v3/publicholidays/",
       year,
-      "/DE"
+      location
     )) |>
       httr::content()
     

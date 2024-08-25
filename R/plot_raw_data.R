@@ -8,13 +8,13 @@ plot_raw_data <- function(df, x, y, color, missing_value, file_name) {
     filter(!!sym(missing_value) == TRUE)
   
   p <- ggplot(df, aes(x = !!sym(x), y = !!sym(y))) +
-    geom_line(aes(color = "Regular Data"), lwd = 0.1) +
+    geom_line(aes(color = "Regulaere Zeitreihe"), lwd = 0.1) +
     geom_point(
       data = duplicated_data,
       aes(
         x = !!sym(x),
         y = !!sym(y),
-        color = "Duplicated Data",
+        color = "Duplikate",
       ),
       shape=18,
       size = 1.8
@@ -23,37 +23,26 @@ plot_raw_data <- function(df, x, y, color, missing_value, file_name) {
                aes(
                  x = !!sym(x),
                  y = !!sym(y),
-                 color = "Missing Data",
+                 color = "Fehlende Werte",
                ),
                shape=16,
                size = 1.8) +
     scale_color_manual(
-      name = "Data Type",
       values = c(
-        "Regular Data" = "#000000",
-        "Duplicated Data" = "orange",
-        "Missing Data" = "#FF0000"
+        name = " ",
+        "Regulaere Zeitreihe" = "#000000",
+        "Duplikate" = "orange",
+        "Fehlende Werte" = "#FF0000"
       ),
       labels = c(
-        "Regular Data" = "Regular Data",
-        "Duplicated Data" = "Duplicated Data",
-        "Missing Data" = "Missing Data"
+        "Regulaere Zeitreihe" = "Regulaere Zeitreihe",
+        "Duplikate" = "Duplikate",
+        "Fehlende Werte" = "Fehlende Werte"
       )
     ) +
-    labs(
-      title = "Grid Load Over Time",
-      x = "Date",
-      y = "Grid Load (MW)",
-      color = "Data Type"
-    ) +
-    theme(
-      plot.title = element_text(
-        size = 14,
-        face = "bold",
-        hjust = 0.5
-      ),
-      legend.position = "bottom",
-    )
+    labs(x = "Zeitstempel", y = "Stromverbrauch [MW]", color = "") +
+    theme(legend.position = "bottom") + 
+    guides(color = guide_legend(override.aes = list(lwd = 3, size = 3)))
   
   p
   

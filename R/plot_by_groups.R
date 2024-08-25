@@ -56,22 +56,24 @@
 #'
 #' @note -
 
-plot_by_group <- function(filtered_power_consum, group_name, file_name, colors, title) {
-  agg_df <- aggregate(filtered_power_consum$GridLoad, 
+plot_by_group <- function(filtered_power_consum, group_name, file_name, colors, title, y,
+                          x_label, y_label) {
+  
+  agg_df <- aggregate(filtered_power_consum[[y]], 
                       by=list(filtered_power_consum[[group_name]]),
                       FUN=mean)
   
   names(agg_df) <- c(group_name, "GridLoadMean")
-  max_value <- max(filtered_power_consum$GridLoad)
+  max_value <- max(filtered_power_consum[[y]])
   
   p <-
-    ggplot(filtered_power_consum, aes(x = Year, y = GridLoad, fill = !!sym(group_name))) +
+    ggplot(filtered_power_consum, aes(x = Year, y = !!sym(y), fill = !!sym(group_name))) +
     geom_boxplot() + 
     geom_text(
       data = agg_df,
-      aes(x = Inf, y = max_value*1.05, label = sprintf("%.2f", GridLoadMean)),
+      aes(x = Inf, y = max_value*1.05, label = paste0("Durchschnitt: ", sprintf("%.2f", GridLoadMean)) ),
       color = "darkred",
-      size = 5.5,
+      size = 3.5,
       hjust = 1.1, 
       vjust = 0.5
     ) +
@@ -83,8 +85,8 @@ plot_by_group <- function(filtered_power_consum, group_name, file_name, colors, 
     ) +
     labs(
       title = title,
-      x = "Year",
-      y = "Grid Load"
+      x = x_label,
+      y = y_label
     )
   
   ggsave(file_name, plot = p, width = 20, height = 10, dpi = 300)

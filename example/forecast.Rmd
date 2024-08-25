@@ -22,6 +22,7 @@ library(qlcal)
 library(devtools)
 library(zoo)
 library(corrplot)
+library(scales)
 load_all()
 # devtools::document()
 ```
@@ -44,7 +45,7 @@ power_generation_path <- "dataset\\stunde_2015_2024\\Realisierte_Erzeugung_20150
 ```{r, echo=TRUE, message=FALSE}
 
 # Load german holidays from 2015 to 2024
-german_holidays <- load_german_holidays(from_year = 2015, to_year = 2024)
+german_holidays <- load_german_holidays(from_year = 2015, to_year = 2024, location="/DE")
 german_holidays <- german_holidays |> 
   mutate(date = as.Date(date)) |>
   select(localName, date)
@@ -91,9 +92,12 @@ cleaned_power_consum <- raw_power_consum |>
     So = Weekday == "So",
     Holiday = (Date %in% german_holidays$date),
     LastDayWasNotWorkDay = !lag(WorkDay, n=24),
-    LastDayWasWeekendAndNowHoliday = (Holiday & lag(So, n=24)),
-    NextDayIsWeekendAndNowHoliday = (Holiday & lead(Sa, n=24))
-  ) 
+    LastDayWasNotWorkDayAndNowWorkDay = (LastDayWasNotWorkDay & WorkDay),
+    NextDayIsNotWorkDayAndNowWorkDay= (WorkDay & !lead(WorkDay, n=24)),
+    LastDayWasHolodiayAndNotWeekend = lag(Holiday, n=24) & !Sa & !So,
+    NextDayIsHolidayAndNotWeekend = lead(Holiday, n=24) & !lead(Sa, n=24) & !lead(So, n=24),
+    HolidayName = ifelse(is.na(localName), "Regulärer Tag", localName)
+  )
 
 cleaned_power_consum |>
   gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 400)
@@ -143,62 +147,84 @@ cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], metho
 ```{r echo=TRUE, message=FALSE}
 load_all()
 local_name_colors <- c(
-  "Christi Himmelfahrt" = "#E69F00",
-  "Erster Weihnachtstag" = "#E69F00",
-  "Karfreitag" = "#E69F00",
-  "Neujahr" = "#E69F00",
-  "Ostermontag" = "#E69F00",
-  "Pfingstmontag" = "#E69F00",
-  "Reformationstag" = "#E69F00",
-  "Tag der Arbeit" = "#E69F00",
-  "Tag der Deutschen Einheit" = "#E69F00",
-  "Zweiter Weihnachtstag" = "#E69F00",
-  "Working-Day" = "darkgrey"
+  "Christi Himmelfahrt" = palette()[2],
+  "Erster Weihnachtstag" = palette()[2],
+  "Karfreitag" = palette()[2],
+  "Neujahr" = palette()[2],
+  "Ostermontag" = palette()[2],
+  "Pfingstmontag" = palette()[2],
+  "Reformationstag" = palette()[2],
+  "Tag der Arbeit" = palette()[2],
+  "Tag der Deutschen Einheit" = palette()[2],
+  "Zweiter Weihnachtstag" = palette()[2],
+  "Regulärer Tag" = palette()[1]
 )
+
 
 week_colors <- c(
-  "Mo" = "darkgrey",
-  "Di" = "darkgrey",
-  "Mi" = "darkgrey",
-  "Do" = "darkgrey",
-  "Fr" = "darkgrey",
-  "Sa" = "#E69F00",
-  "So" = "#E69F00"
+  "Mo" = palette()[1],
+  "Di" = palette()[1],
+  "Mi" = palette()[1],
+  "Do" = palette()[1],
+  "Fr" = palette()[1],
+  "Sa" = palette()[2],
+  "So" = palette()[2]
 )
 
-working_colors <- c("TRUE" = "darkgrey", "FALSE" = "#E69F00")
+working_colors <- c("TRUE" = palette()[1], "FALSE" = palette()[2])
 
 plot_histogram_by_group(
   cleaned_power_consum,
   group_name = "WorkDay",
-  file_name = "arbeitstag.png",
+  file_name = "plots\\workday_histogram.png",
   colors = working_colors,
-  x="PowerConsum"
+  x="PowerConsum",
+  x_label = "Stromverbrauch [MW]",
+  y_label = "Häufigkeit"
+)
+
+plot_histogram_by_group(
+  cleaned_power_consum,
+  group_name = "WorkDay",
+  file_name = "plots\\workday_histogram.png",
+  colors = working_colors,
+  x="PowerConsum",
+  x_label = "Stromverbrauch [MW]",
+  y_label = "Häufigkeit"
 )
 
 
 plot_by_group(
   cleaned_power_consum,
-  group_name = "localName",
-  file_name = "holidays.png",
+  group_name = "HolidayName",
+  file_name = "plots\\holiday_boxplot.png",
   colors = local_name_colors,
-  title = "Arbeitstage"
+  title = "Übersicht der einzelnen Feiertage",
+  y="PowerConsum",
+  y_label="Stromverbrauch [MW]",
+  x_label="Jahre"
 )
 
 plot_by_group(
   cleaned_power_consum,
-  group_name = "Wochentag",
-  file_name = "week.png",
+  group_name = "Weekday",
+  file_name = "plots\\weekday_boxplot.png",
   colors = week_colors,
-  title = "Wochentage"
+  title = "Übersicht der einzelnen Wochentage",
+  y = "PowerConsum",
+  y_label="Stromverbrauch [MW]",
+  x_label="Jahre"
 )
 
 plot_by_group(
   cleaned_power_consum,
-  group_name = "Arbeitstag",
-  file_name = "working_days.png",
+  group_name = "WorkDay",
+  file_name = "plots\\workday_boxplot.png",
   colors = working_colors,
-  title = "Arbeitstage"
+  title = "Übersicht, ob Feiertag (FALSE) oder Werktag (TRUE)",
+  y = "PowerConsum",
+  y_label="Stromverbrauch [MW]",
+  x_label="Jahre"
 )
 
 
@@ -206,30 +232,40 @@ plot_by_column(
   df = cleaned_power_consum,
   x = "Hour",
   y = "PowerConsum",
-  x_label = "Hour",
-  y_label = "Grid Load",
-  file_name = "hour.png",
-  title = "Hour"
+  x_label = "Stunden",
+  y_label = "Stromverbrauch [MW]",
+  file_name = "plots\\hour_boxplot.png",
+  title = "Übersicht der einzelnen Stunden"
 )
 
 plot_by_column(
   df = cleaned_power_consum,
   x = "Month",
   y = "PowerConsum",
-  x_label = "Month",
-  y_label = "Grid Load",
-  file_name = "month.png",
-  title = "Month"
+  x_label = "Monate",
+  y_label = "Stromverbrauch [MW]",
+  file_name = "plots\\month_boxplot.png",
+  title = "Übersicht der einzelnen Monate"
+)
+
+plot_by_column(
+  df = cleaned_power_consum,
+  x = "Week",
+  y = "PowerConsum",
+  x_label = "Woche",
+  y_label = "Stromverbrauch [MW]",
+  file_name = "plots\\week_boxplot.png",
+  title = "Übersicht der einzelnen Wochen"
 )
 
 plot_by_column(
   df = cleaned_power_consum,
   x = "Year",
   y = "PowerConsum",
-  x_label = "Year",
-  y_label = "Grid Load",
-  file_name = "year.png",
-  title = "Year"
+  x_label = "Jahr",
+  y_label = "Stromverbrauch [MW]",
+  file_name = "plots\\year_boxplot.png",
+  title = "Übersicht der einzelnen Jahre"
 )
 
 plot_year_month_week_day(
@@ -249,7 +285,7 @@ plot_year_month_week_day(
   to_month=12,
   year_for_month=2018,
   holiday="Holiday",
-  day_of_week = "Wochentag"
+  day_of_week = "Weekday"
 )
 
 
@@ -259,79 +295,94 @@ plot_year_month_week_day(
 
 ```{r, echo=TRUE, message=FALSE}
 
-fit <- cleaned_power_consum |>
-  filter(year(DateIndex) < 2018) |>
-  fill_gaps() |>
+train_power_consum <- cleaned_power_consum |>
+  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
+test_power_consum <- cleaned_power_consum |>
+  filter((year(DateIndex) == 2024) & (month(DateIndex) == 1)) |>
+  select(
+    # WorkDay,
+    Holiday,
+    # LastDayWasNotWorkDay,
+    # LastDayWasNotWorkDayAndNowWorkDay,
+    # NextDayIsNotWorkDayAndNowWorkDay,
+    # NextDayIsHolidayAndNotWeekend,
+    MeanLastWeek,
+    MeanLastTwoDays,
+    MaxLastOneDay,
+    MinLastOneDay
+  )
+
+
+fit <- train_power_consum |>
   model(
-    ARIMA(PowerConsum ~ 
-            PDQ(D=0) 
-          + pdq(d=0) 
-          + Arbeitstag 
+    Mean = MEAN(PowerConsum), 
+    Naive = NAIVE(PowerConsum),
+    Drift = NAIVE(PowerConsum ~ drift()),
+    # ETS = ETS(PowerConsum)
+    ARIMA = ARIMA(PowerConsum ~ 
+            PDQ(0,0,0)
+          + pdq(d=0)
+          # + WorkDay
+          + Holiday
+          # + NextDayIsHolidayAndNotWeekend
           + MeanLastWeek 
           + MeanLastTwoDays 
-          + MaxLastOneDay 
-          + MinLastOneDay 
-          + LastTwoDaysWasHoliday
+          + MaxLastOneDay
+          + MinLastOneDay
           + fourier(period = "day", K = 10)
-          + fourier(period = "week", K = 10)
-          + fourier(period = "year", K = 5)
+          + fourier(period = "week", K = 4)
+          + fourier(period = "year", K = 2)
           )
-  )
+    )
+
 ```
 
 
 
 ```{r, echo=TRUE, message=FALSE}
 
-days_to_forecast <- 7
+days_to_forecast <- 31
 
-test <- cleaned_power_consum |>
-  filter(year(DateIndex) == 2018) |>
-  filter(month(DateIndex) == 1) |>
-  filter(day(DateIndex) < days_to_forecast) |>
-  select(Arbeitstag,
-         Mo,
-         Di,
-         Mi,
-         Do,
-         Fr,
-         Sa,
-         So,
-         MeanLastWeek,
-         MeanLastTwoDays,
-         MaxLastOneDay,
-         MinLastOneDay,
-         LastTwoDaysWasHoliday) |>
-  fill_gaps()
+# test <- test_power_consum |>
+#   filter(year(DateIndex) == 2024) |>
+#   filter(month(DateIndex) == 1) |>
+#   filter(day(DateIndex) < days_to_forecast)
 
-data_2016 <- cleaned_power_consum |>
-  filter((year(DateIndex) == 2017 & month(DateIndex) == 12 & day(DateIndex) > 20) | 
-         (year(DateIndex) == 2018 & month(DateIndex) == 1 & day(DateIndex) < days_to_forecast))
+data_2024 <- cleaned_power_consum |>
+  filter((year(DateIndex) == 2024) & (month(DateIndex) == 1))
 
 
 fc <- fit |>
-  forecast(new_data = test) |>
+  forecast(new_data = test_power_consum) |>
   mutate(.mean = .mean,
-         PowerConsum = PowerConsum)
+         PowerConsum = PowerConsum) |>
+  as_tsibble(index=DateIndex)
 
-results <- data_2016 |>
+results <- data_2024 |>
   select(DateIndex, PowerConsum) |>
-  rename(Actual = PowerConsum) |>
-  right_join(fc, by = "DateIndex") |> 
-  rename(Forecast = .mean)
+  as_tibble(index="DateIndex") |>
+  rename(RealPowerConsum = PowerConsum) |>
+  right_join(fc, by = "DateIndex") 
 
-rmse <- sqrt(mean((results$Actual - results$Forecast)^2, na.rm = TRUE))
-mape <- mean(abs((results$Actual - results$Forecast) / results$Actual), na.rm = TRUE) * 100
-mae <- mean(abs(results$Actual - results$Forecast), na.rm = TRUE)
-
-
+rmse <- sqrt(mean((results$RealPowerConsum - results$Forecast)^2, na.rm = TRUE))
+mape <- mean(abs((results$RealPowerConsum - results$Forecast) / results$Actual), na.rm = TRUE) * 100
+mae <- mean(abs(results$RealPowerConsum - results$Forecast), na.rm = TRUE)
 
 fc |>
   autoplot() + 
-  geom_line(data = data_2016,
-  aes(x = DateIndex, y = PowerConsum, color ="Testdatensatz"))
+  geom_line(data = data_2024,
+  aes(x = DateIndex, y = PowerConsum, color ="Testdatensatz")) +
+  scale_color_manual(
+      values = c(
+        name = " ",
+        "ARIMA" = "#000000",
+        "Drift" = "orange",
+        "Mean" = "#FF0000",
+        "Naive" = "darkgrey",
+        "Testdatensatz" = "blue"
+      ))
 
-fit |> gg_tsresiduals()
+# fit |> gg_tsresiduals()
 
 glance(fit)
 report(fit)

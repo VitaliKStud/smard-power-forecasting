@@ -50,7 +50,7 @@ plot_year_month_week_day <- function(df, date_column, y,
       y = "Grid Load",     
       title = "Yearly Grid Load 2015-2023"  
     )
-  ggsave("raw_years.png", plot = year_plot, width = 20, height = 10, dpi = 300)
+  ggsave("plots\\raw_years.png", plot = year_plot, width = 20, height = 10, dpi = 300)
   
   month_plot <- ggplot(data=df_month, aes(x=date_to_filter, y=!!sym(y), color=!!sym(holiday))) +
     geom_path(aes(group = 1)) +
@@ -61,7 +61,7 @@ plot_year_month_week_day <- function(df, date_column, y,
       y = "Date Load",     
       title = "Monthly representation of Grid Load 2018"  
     )
-  ggsave("raw_month.png", plot = month_plot, width = 20, height = 10, dpi = 300)
+  ggsave("plots\\raw_month.png", plot = month_plot, width = 20, height = 10, dpi = 300)
   
   week_plot <- ggplot(data=df_week, aes(x=date_to_filter, y=!!sym(y), color=!!sym(holiday))) +
     geom_path(aes(group = 1)) +
@@ -75,7 +75,7 @@ plot_year_month_week_day <- function(df, date_column, y,
       y = "Grid Load",
       title = "Weekly representation of Grid Load for 2018"  
     )
-  ggsave("raw_week.png", plot = week_plot, width = 20, height = 10, dpi = 300)
+  ggsave("plots\\raw_week.png", plot = week_plot, width = 20, height = 10, dpi = 300)
   
   day_plot <- ggplot(data=df_day, aes(x=date_to_filter, y=!!sym(y), color=!!sym(holiday))) +
     geom_path(aes(group = 1)) +
@@ -89,6 +89,6 @@ plot_year_month_week_day <- function(df, date_column, y,
       y = "Grid Load",
       title = "Daily representation of Grid Load for Apr. 2018"  
     )
-  ggsave("raw_day.png", plot = day_plot, width = 20, height = 10, dpi = 300)
+  ggsave("plots\\raw_day.png", plot = day_plot, width = 20, height = 10, dpi = 300)
 
 }
