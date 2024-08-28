@@ -1,10 +1,10 @@
 
 
 plot_raw_data <- function(df, x, y, color, missing_value, file_name) {
-  duplicated_data <- raw_power_consum |>
+  duplicated_data <- df |>
     filter(!!sym(color) == TRUE)
   
-  missing_data <- raw_power_consum |>
+  missing_data <- df |>
     filter(!!sym(missing_value) == TRUE)
   
   p <- ggplot(df, aes(x = !!sym(x), y = !!sym(y))) +

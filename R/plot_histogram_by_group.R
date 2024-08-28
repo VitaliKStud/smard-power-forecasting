@@ -11,7 +11,7 @@ plot_histogram_by_group <- function(filtered_power_consum,
   p <-
     ggplot(filtered_power_consum, aes(x = !!sym(x), fill = !!sym(group_name) )) +
     geom_histogram(alpha = 0.5, binwidth = 200, position = "dodge") +
-    geom_density(fill=NA, aes(color = !!sym(group_name), y=200 * ..count..)) + 
+    geom_density(fill=NA, aes(color = !!sym(group_name), y=200 * after_stat(count))) + 
     theme(legend.position = "bottom",
           strip.text = element_text(size = 12)) +
     labs(x = x_label, y = y_label) +

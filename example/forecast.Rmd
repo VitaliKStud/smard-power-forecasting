@@ -23,6 +23,7 @@ library(devtools)
 library(zoo)
 library(corrplot)
 library(scales)
+library(fable.prophet)
 load_all()
 # devtools::document()
 ```
@@ -39,6 +40,7 @@ load_all()
 # Define datapaths
 power_consum_path <- "dataset\\stunde_2015_2024\\Realisierter_Stromverbrauch_201501010000_202407090000_Stunde.csv"
 power_generation_path <- "dataset\\stunde_2015_2024\\Realisierte_Erzeugung_201501010000_202407090000_Stunde.csv"
+power_consum_smard_prediction_path <- "dataset\\propgnose_vom_smard\\Prognostizierter_Stromverbrauch_202401010000_202407090000_Stunde.csv"
 
 ```
 
@@ -55,69 +57,91 @@ german_holidays <- german_holidays |>
 # Load and cleanup power-consum, filling gaps and droping duplicates, keeping first value. 
 
 ```{r, echo=TRUE, message=FALSE}
-raw_power_consum <- read.csv2(file = power_consum_path)
 
-names(raw_power_consum)[names(raw_power_consum) == "Datum.von"] <- "DateFrom"
-names(raw_power_consum)[names(raw_power_consum) == "Gesamt..Netzlast...MWh..Berechnete.Auflösungen"] <- "PowerConsum"
-
-raw_power_consum <-  raw_power_consum |>
-  select(DateFrom, PowerConsum) |>
-  mutate(PowerConsum = as.numeric(gsub(",", ".", gsub("\\.", "", PowerConsum))),
-         DateFrom = dmy_hm(DateFrom))
-
-cleaned_power_consum <- raw_power_consum |>
-  distinct(DateFrom, .keep_all = TRUE) |>
-  mutate(DateIndex = DateFrom) |>
-  as_tsibble(index = DateIndex) |>
-  select(DateFrom, PowerConsum) |>
-  fill_gaps() |>
-  fill(PowerConsum, .direction = "downup") |>
-  mutate(
-    Weekday = wday(DateIndex, label = TRUE),  
-    Date = as.Date(DateIndex),
-    Year = as.factor(year(DateIndex)),
-    Week = as.factor(week(DateIndex)),
-    Hour = as.factor(hour(DateIndex)),
-    Month = as.factor(month(DateIndex)),
-  ) |>
-  left_join(german_holidays, by = c("Date" = "date")) |>
-  mutate(
-    WorkDay = !(Date %in% german_holidays$date | Weekday %in% c("Sa", "So")),
-    Mo = Weekday == "Mo",
-    Di = Weekday == "Di",  
-    Mi = Weekday == "Mi",  
-    Do = Weekday == "Do",  
-    Fr = Weekday == "Fr",  
-    Sa = Weekday == "Sa",  
-    So = Weekday == "So",
-    Holiday = (Date %in% german_holidays$date),
-    LastDayWasNotWorkDay = !lag(WorkDay, n=24),
-    LastDayWasNotWorkDayAndNowWorkDay = (LastDayWasNotWorkDay & WorkDay),
-    NextDayIsNotWorkDayAndNowWorkDay= (WorkDay & !lead(WorkDay, n=24)),
-    LastDayWasHolodiayAndNotWeekend = lag(Holiday, n=24) & !Sa & !So,
-    NextDayIsHolidayAndNotWeekend = lead(Holiday, n=24) & !lead(Sa, n=24) & !lead(So, n=24),
-    HolidayName = ifelse(is.na(localName), "Regulärer Tag", localName)
+load_power_consum <- function(path) {
+  raw_power_consum <- read.csv2(file = path)
+  
+  names(raw_power_consum)[names(raw_power_consum) == "Datum.von"] <- "DateFrom"
+  names(raw_power_consum)[names(raw_power_consum) == "Gesamt..Netzlast...MWh..Berechnete.Auflösungen"] <- "PowerConsum"
+  
+  raw_power_consum <-  raw_power_consum |>
+    select(DateFrom, PowerConsum) |>
+    mutate(PowerConsum = as.numeric(gsub(",", ".", gsub("\\.", "", PowerConsum))),
+           DateFrom = dmy_hm(DateFrom))
+  
+  cleaned_power_consum <- raw_power_consum |>
+    distinct(DateFrom, .keep_all = TRUE) |>
+    mutate(DateIndex = DateFrom) |>
+    as_tsibble(index = DateIndex) |>
+    select(DateFrom, PowerConsum) |>
+    fill_gaps() |>
+    fill(PowerConsum, .direction = "downup") |>
+    mutate(
+      Weekday = wday(DateIndex, label = TRUE),  
+      Date = as.Date(DateIndex),
+      Year = as.factor(year(DateIndex)),
+      Week = as.factor(week(DateIndex)),
+      Hour = as.factor(hour(DateIndex)),
+      Month = as.factor(month(DateIndex)),
+    ) |>
+    left_join(german_holidays, by = c("Date" = "date")) |>
+    mutate(
+      WorkDay = ifelse(!(Date %in% german_holidays$date | Weekday %in% c("Sa", "So")), 1, 0),
+      Mo = Weekday == "Mo",
+      Di = Weekday == "Di",  
+      Mi = Weekday == "Mi",  
+      Do = Weekday == "Do",  
+      Fr = Weekday == "Fr",  
+      Sa = Weekday == "Sa",  
+      So = Weekday == "So",
+      Holiday = ifelse(Date %in% german_holidays$date, 1, 0),
+      LastDayWasNotWorkDay = !lag(WorkDay, n=24),
+      LastDayWasNotWorkDayAndNowWorkDay = (LastDayWasNotWorkDay & WorkDay),
+      NextDayIsNotWorkDayAndNowWorkDay= (WorkDay & !lead(WorkDay, n=24)),
+      LastDayWasHolodiayAndNotWeekend = lag(Holiday, n=24) & !Sa & !So,
+      NextDayIsHolidayAndNotWeekend = lead(Holiday, n=24) & !lead(Sa, n=24) & !lead(So, n=24),
+      HolidayName = ifelse(is.na(localName), "Regulärer Tag", localName)
+    )
+  
+  cleaned_power_consum |>
+    gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 400)
+  
+  
+  
+  raw_power_consum <- raw_power_consum |>
+    arrange(DateFrom) |>
+    mutate(
+      MissingValue = difftime(DateFrom, lag(DateFrom, default = first(DateFrom)), units = "hours") == 2,
+      DuplicatedDate = duplicated(DateFrom),
+      Year = year(DateFrom)
+    )
+  
+  plot_raw_data(
+    df = raw_power_consum,
+    x = "DateFrom",
+    y = "PowerConsum",
+    color = "DuplicatedDate",
+    missing_value = "MissingValue",
+    file_name = "plots\\raw_power_consum.png"
   )
+  
+  return(list(raw_power_consum = raw_power_consum, cleaned_power_consum = cleaned_power_consum))
+}
 
-cleaned_power_consum |>
-  gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 400)
+power_consum_smard_prediction_loaded <- load_power_consum(power_consum_smard_prediction_path)
+raw_power_consum_smard_prediction <- power_consum_smard_prediction_loaded$raw_power_consum
+cleaned_power_consum_smard_prediction <- power_consum_smard_prediction_loaded$cleaned_power_consum
 
-raw_power_consum <- raw_power_consum |>
-  arrange(DateFrom) |>
-  mutate(
-    MissingValue = difftime(DateFrom, lag(DateFrom, default = first(DateFrom)), units = "hours") == 2,
-    DuplicatedDate = duplicated(DateFrom),
-    Year = year(DateFrom)
-  )
+cleaned_power_consum_smard_prediction <- cleaned_power_consum_smard_prediction |>
+  mutate(.model = "SMARD")
+names(cleaned_power_consum_smard_prediction)[names(cleaned_power_consum_smard_prediction) == "PowerConsum"] <- ".mean"
 
-plot_raw_data(
-  raw_power_consum,
-  x = "DateFrom",
-  y = "PowerConsum",
-  color = "DuplicatedDate",
-  missing_value = "MissingValue",
-  file_name = "plots\\raw_power_consum.png"
-)
+power_consum_loaded <- load_power_consum(power_consum_path)
+raw_power_consum <- power_consum_loaded$raw_power_consum
+cleaned_power_consum <- power_consum_loaded$cleaned_power_consum
+
+
+
 
 ```
 
@@ -127,13 +151,13 @@ plot_raw_data(
 
 cleaned_power_consum$localName[is.na(cleaned_power_consum$localName)] = "Working-Day"
 
-cleaned_power_consum$MeanLastWeek <- rollapply(cleaned_power_consum$PowerConsum, width = 24*7, FUN = function(x) mean(x[1:(24*7-1)]), align = "right", fill = NA)
+cleaned_power_consum$MeanLastWeek <- rollapply(cleaned_power_consum$PowerConsum, width = 24*7, FUN = function(x) mean(x[1:(24*7-1)]), align = "right", fill = NA) 
 
-cleaned_power_consum$MeanLastTwoDays <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) mean(x[1:(24*2-1)]), align = "right", fill = NA)
+cleaned_power_consum$MeanLastTwoDays <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) mean(x[1:(24*2-1)]), align = "right", fill = NA) 
 
-cleaned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*1, FUN = function(x) max(x[1:(24*1-1)]), align = "right", fill = NA)
+cleaned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*1, FUN = function(x) max(x[1:(24*1-1)]), align = "right", fill = NA) 
 
-cleaned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*1, FUN = function(x) min(x[1:(24*1-1)]), align = "right", fill = NA)
+cleaned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*1, FUN = function(x) min(x[1:(24*1-1)]), align = "right", fill = NA) 
 
 
 cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
@@ -290,18 +314,17 @@ plot_year_month_week_day(
 
 
 ```
-
-# Fit
+# Train-Test dataset
 
 ```{r, echo=TRUE, message=FALSE}
 
 train_power_consum <- cleaned_power_consum |>
-  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
+  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024)) 
+
 test_power_consum <- cleaned_power_consum |>
-  filter((year(DateIndex) == 2024) & (month(DateIndex) == 1)) |>
   select(
     # WorkDay,
-    Holiday,
+    WorkDay,
     # LastDayWasNotWorkDay,
     # LastDayWasNotWorkDayAndNowWorkDay,
     # NextDayIsNotWorkDayAndNowWorkDay,
@@ -312,61 +335,113 @@ test_power_consum <- cleaned_power_consum |>
     MinLastOneDay
   )
 
+```
 
+# Fit
+
+```{r, echo=TRUE, message=FALSE}
+
+train_power_consum |>
+  model(STL(
+    PowerConsum ~ season(period = 24 * 365)
+    + season(period = 24 * 7)
+    + season(period = 24),
+    robust = TRUE
+  )) |>
+  components() |>
+  autoplot() + labs(x = "Observation")
+
+```
+
+```{r, echo=TRUE, message=FALSE}
 fit <- train_power_consum |>
   model(
-    Mean = MEAN(PowerConsum), 
+    Mean = MEAN(PowerConsum),
     Naive = NAIVE(PowerConsum),
     Drift = NAIVE(PowerConsum ~ drift()),
-    # ETS = ETS(PowerConsum)
-    ARIMA = ARIMA(PowerConsum ~ 
-            PDQ(0,0,0)
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(D=0)
           + pdq(d=0)
           # + WorkDay
-          + Holiday
+          + WorkDay
           # + NextDayIsHolidayAndNotWeekend
-          + MeanLastWeek 
-          + MeanLastTwoDays 
+          + MeanLastWeek
+          + MeanLastTwoDays
           + MaxLastOneDay
           + MinLastOneDay
-          + fourier(period = "day", K = 10)
+          # xreg = cbind(fourier(PowerConsum, c(8,4,2))),
+          + fourier(period = "day", K = 8)
           + fourier(period = "week", K = 4)
-          + fourier(period = "year", K = 2)
-          )
+          + fourier(period = "year", K = 2),
+          order_constraint = p+q <=12 & P+Q <=12
+          ),
+    PROPHET = prophet(
+      PowerConsum ~ 
+        MeanLastWeek
+      + MeanLastTwoDays
+      + MaxLastOneDay
+      + MinLastOneDay
+      + WorkDay 
+      + season(period = 24, order = 10) 
+      + season(period = 7*24, order = 5) 
+      + season(period = 365*24, order = 3))
     )
-
+    
 ```
 
 
 
 ```{r, echo=TRUE, message=FALSE}
 
-days_to_forecast <- 31
+days_to_forecast <- 7
+months_to_forecast <- 1
 
-# test <- test_power_consum |>
-#   filter(year(DateIndex) == 2024) |>
-#   filter(month(DateIndex) == 1) |>
-#   filter(day(DateIndex) < days_to_forecast)
+test <- test_power_consum |>
+  filter(year(DateIndex) == 2024) |>
+  filter(month(DateIndex) >= 1) |>
+  filter(month(DateIndex) <= months_to_forecast) |>
+  filter(day(DateIndex) < days_to_forecast)
 
 data_2024 <- cleaned_power_consum |>
-  filter((year(DateIndex) == 2024) & (month(DateIndex) == 1))
+  filter(year(DateIndex) == 2024) |>
+  filter(month(DateIndex) >= 1) |>
+  filter(month(DateIndex) <= months_to_forecast) |>
+  filter(day(DateIndex) < days_to_forecast)
+
+cleaned_power_consum_smard_prediction_filtered <- cleaned_power_consum_smard_prediction |>
+  filter(year(DateIndex) == 2024) |>
+  filter(month(DateIndex) >= 1) |>
+  filter(month(DateIndex) <= months_to_forecast) |>
+  filter(day(DateIndex) < days_to_forecast)
 
 
 fc <- fit |>
-  forecast(new_data = test_power_consum) |>
-  mutate(.mean = .mean,
-         PowerConsum = PowerConsum) |>
-  as_tsibble(index=DateIndex)
+  forecast(new_data = test) |>
+  mutate(PowerConsum = PowerConsum) |>
+  as_tsibble(index=DateIndex) |>
+  bind_rows(cleaned_power_consum_smard_prediction_filtered)
 
 results <- data_2024 |>
   select(DateIndex, PowerConsum) |>
   as_tibble(index="DateIndex") |>
   rename(RealPowerConsum = PowerConsum) |>
-  right_join(fc, by = "DateIndex") 
+  right_join(fc, by = "DateIndex")
 
-rmse <- sqrt(mean((results$RealPowerConsum - results$Forecast)^2, na.rm = TRUE))
-mape <- mean(abs((results$RealPowerConsum - results$Forecast) / results$Actual), na.rm = TRUE) * 100
-mae <- mean(abs(results$RealPowerConsum - results$Forecast), na.rm = TRUE)
+results_2 <- data_2024 |>
+  select(DateIndex, PowerConsum) |>
+  as_tibble(index="DateIndex") |>
+  rename(RealPowerConsum = PowerConsum) |>
+  right_join(cleaned_power_consum_smard_prediction_filtered, by = "DateIndex")
+
+result_3 <- bind_rows(results, results_2)
+
+metrics_by_model <- result_3 %>%
+  group_by(.model) %>%  # Group by the .model column
+  summarize(
+    RMSE = sqrt(mean((RealPowerConsum - .mean)^2, na.rm = TRUE)),  # Calculate RMSE
+    MAPE = mean(abs((RealPowerConsum - .mean) / RealPowerConsum), na.rm = TRUE) * 100,  # Calculate MAPE
+    MAE = mean(abs(RealPowerConsum - .mean), na.rm = TRUE)  # Calculate MAE
+  )
 
 fc |>
   autoplot() + 
@@ -375,14 +450,25 @@ fc |>
   scale_color_manual(
       values = c(
         name = " ",
-        "ARIMA" = "#000000",
+        "ARIMA" = "red",
         "Drift" = "orange",
-        "Mean" = "#FF0000",
+        "Mean" = "black",
         "Naive" = "darkgrey",
-        "Testdatensatz" = "blue"
+        "Testdatensatz" = "blue",
+        "SMARD" = "lightblue",
+        "PROPHET" = "green"
       ))
 
-# fit |> gg_tsresiduals()
+
+
+fit |> select(PROPHET) |> gg_tsresiduals()
+fit |> select(Mean) |> gg_tsresiduals()
+fit |> select(Naive) |> gg_tsresiduals()
+fit |> select(Drift) |> gg_tsresiduals()
+fit |> select(ARIMA) |> gg_tsresiduals()
+
+# cleaned_power_consum_smard_prediction |>
+#     gg_tsdisplay(.mean, plot_type = "partial", lag = 400)
 
 glance(fit)
 report(fit)
