@@ -314,14 +314,17 @@ plot_year_month_week_day(
 
 
 ```
-# Train-Test dataset
+# Train-Test dataset also Transformation
 
 ```{r, echo=TRUE, message=FALSE}
 
-train_power_consum <- cleaned_power_consum |>
-  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024)) 
+tranfomed_power_consum <- cleaned_power_consum |>
+  mutate(PowerConsum = PowerConsum)
 
-test_power_consum <- cleaned_power_consum |>
+train_power_consum <- tranfomed_power_consum |>
+  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
+
+test_power_consum <- tranfomed_power_consum |>
   select(
     # WorkDay,
     WorkDay,
@@ -351,6 +354,15 @@ train_power_consum |>
   components() |>
   autoplot() + labs(x = "Observation")
 
+lambda <- train_power_consum |>
+  features(PowerConsum, features = guerrero) |>
+  pull(lambda_guerrero)
+train_power_consum_transformed <- train_power_consum |>
+  mutate(PowerConsum = box_cox(PowerConsum, lambda))
+
+train_power_consum_transformed |>
+  gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 400)
+
 ```
 
 ```{r, echo=TRUE, message=FALSE}
@@ -359,22 +371,23 @@ fit <- train_power_consum |>
     Mean = MEAN(PowerConsum),
     Naive = NAIVE(PowerConsum),
     Drift = NAIVE(PowerConsum ~ drift()),
-    ARIMA = ARIMA(PowerConsum ~
-            PDQ(D=0)
-          + pdq(d=0)
-          # + WorkDay
-          + WorkDay
-          # + NextDayIsHolidayAndNotWeekend
-          + MeanLastWeek
-          + MeanLastTwoDays
-          + MaxLastOneDay
-          + MinLastOneDay
-          # xreg = cbind(fourier(PowerConsum, c(8,4,2))),
-          + fourier(period = "day", K = 12)
-          + fourier(period = "week", K = 5)
-          + fourier(period = "year", K = 2),
-          order_constraint = p+q <=12 & P+Q <=12
-          ),
+    ARIMA_A=ARIMA(PowerConsum, stepwise = FALSE, approx = FALSE, greedy=FALSE),
+    # ARIMA = ARIMA(PowerConsum ~
+    #         PDQ(D=0)
+    #       + pdq(d=0)
+    #       # + WorkDay
+    #       + WorkDay
+    #       # + NextDayIsHolidayAndNotWeekend
+    #       + MeanLastWeek
+    #       + MeanLastTwoDays
+    #       + MaxLastOneDay
+    #       + MinLastOneDay
+    #       # xreg = cbind(fourier(PowerConsum, c(8,4,2))),
+    #       + fourier(period = "day", K = 12)
+    #       + fourier(period = "week", K = 5)
+    #       + fourier(period = "year", K = 2),
+    #       order_constraint = p+q <=12 & P+Q <=12
+    #       ),
     PROPHET = prophet(
       PowerConsum ~ 
         MeanLastWeek
@@ -384,7 +397,7 @@ fit <- train_power_consum |>
       + WorkDay 
       + season(period = 24, order = 10) 
       + season(period = 7*24, order = 5) 
-      + season(period = 365*24, order = 3))
+      + season(period = 365*24, order = 10))
     )
     
 ```
@@ -417,7 +430,7 @@ cleaned_power_consum_smard_prediction_filtered <- cleaned_power_consum_smard_pre
 
 fc <- fit |>
   forecast(new_data = test) |>
-  mutate(PowerConsum = PowerConsum) |>
+  mutate(.mean = .mean) |>
   as_tsibble(index=DateIndex) |>
   bind_rows(cleaned_power_consum_smard_prediction_filtered)
 
@@ -456,7 +469,8 @@ fc |>
         "Naive" = "darkgrey",
         "Testdatensatz" = "blue",
         "SMARD" = "lightblue",
-        "PROPHET" = "green"
+        "PROPHET" = "green",
+        "ARIMA_A" = "red"
       ))
 
 
