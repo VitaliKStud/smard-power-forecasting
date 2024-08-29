@@ -48,12 +48,12 @@ Figure 2 is yearly representation of the years 2015-2024. We can notice here, th
 the beginning of the year there is an increase of Power-Consum and in the end of the year
 there is a decrease (Christmas, New-year).
 
-![TEST](example\\plots\\raw_years.png)
+![TEST](example/plots/raw_years.png)
 Figure 2 Raw Power-Consum - Years
 
 The boxplot combination of all years we can see the pattern in more detail. Figure 3 shows this
 pattern. 
-![TEST](example\\plots\\week_boxplot.png)
+![TEST](example/plots/week_boxplot.png)
 Figure 3 Raw Power-Consum - Weeks
 
 
@@ -62,7 +62,7 @@ Figure 3 Raw Power-Consum - Weeks
 Figure 4 is the monthly representation of the years 2018. Here we can observe in more detail
 the end of the year. Around 24th December, there is a decrease of Power-Consum.
 
-![TEST](example\\plots\\raw_month.png)
+![TEST](example/plots/raw_month.png)
 Figure 4 Raw Power-Consum - Monthly
 
 ## Raw Dataset, weekly representation
@@ -71,12 +71,12 @@ Figure 5 is weekly representation of the year 2018. Red marked lines are holiday
 We can notice, that on holidays, but also on weekend (Saturday, Sunday) therese is a 
 decrease of Power-Consum. 
 
-![TEST](example\\plots\\raw_week.png)
+![TEST](example/plots/raw_week.png)
 Figure 5 Raw Power-Consum - Weekly
 
 Figure 6 shows weekdays over years (2015-2024). To be sure, there is a decrease for weekend. 
 
-![TEST](example\\plots\\weekday_boxplot.png)
+![TEST](example/plots/weekday_boxplot.png)
 Figure 6 Raw Power-Consum - Weeks
 
 
@@ -87,7 +87,7 @@ the night (20:00-06:00) there is a lower Power-Consum. In the Day-Time there is 
 Between (13:00-20:00) there is a pattern for almost all days (see also Figure 3). In the middle
 of the peak there is a decrease and an increase again. This needs to be tracked by the model correctly.
 
-![TEST](example\\plots\\hour_boxplot.png)
+![TEST](example/plots/hour_boxplot.png)
 Figure 7 Raw Power-Consum - Hourly
 
 # Holidays
@@ -95,7 +95,7 @@ Figure 7 Raw Power-Consum - Hourly
 Figure 8 shows the holiday effect. "Durchschnitt" is the mean Power-Consum over
 years. There is a significant increase of Power-Consum for "Working-Days" (black) compared with holidays.
 
-![TEST](example\\plots\\holiday_boxplot.png)
+![TEST](example/plots/holiday_boxplot.png)
 Figure 8 Holiday Effect
 
 
