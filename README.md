@@ -29,7 +29,7 @@ In this study there is a dataset for Power-Consum in germany from [SMARD](https:
 the year 2015 - 2024.
 
 Figure 1 shows the raw dataset with missing values (red), duplicated timestamps (orange) and
-Power-Consum over time (black). With one missing values and one duplicate every year it was
+Power-Consum over time (black), hourly resolution. With one missing values and one duplicate every year it was
 easy to clean up the dataset. Overall an almost clean set. After cleaning up the dataset there are
 plausible observations for the Power-Consum:
 
@@ -110,4 +110,67 @@ Within the exploration there were found few features, that are influencing Power
 - Max Power-Consum of last day
 - Min Power-Consum of last day
 
+## Comlex seasonality
+
+There is a complex seasonality. For the hourly resolution there is a yearly, weekly and a daily 
+seasonality. Which needs to be tracked by the model. 
+
+## Transformation, Train and Test Dataset
+
+Before we start with modeling we need to check ACF, PACF and also the STL-Decomposition.
+Probably there is a need of transformation for the Power-Consum (Box-Cox, Log). 
+This will be also involved to fit the best model.
+
+## Model
+
+To compare the best model there are few simple approaches, like the MEAN, NAIVE and DRIFT methods.
+To compare the models we use metrics MAE and MAPE. 
+
+### ARIMA-Automated
+
+First approach is to use the best ARIMA Model:
+
+    ARIMA_A=ARIMA(PowerConsum ~ 
+                    WorkDay 
+                  + MeanLastWeek
+                  + MeanLastTwoDays
+                  + MaxLastOneDay
+                  + MinLastOneDay
+                  , stepwise = TRUE, approx = TRUE, greedy=TRUE),
+
+### ARIMA-Fourier
+
+Next approach is to use the fourier terms to describe the complex seasonality. This model will select
+the best PDQ and pdq parameters automatically, by defining D=0 and d=0.
+
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(D=0)
+          + pdq(d=0)
+          + WorkDay
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 12)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 2),
+          order_constraint = p+q <=12 & P+Q <=12
+          ),
+
+### PROPHET
+
+The last approach is to use the Prophet Model.
+
+    PROPHET = prophet(
+      PowerConsum ~ 
+        MeanLastWeek
+      + MeanLastTwoDays
+      + MaxLastOneDay
+      + MinLastOneDay
+      + WorkDay 
+      + season(period = 24, order = 10) 
+      + season(period = 7*24, order = 5) 
+      + season(period = 365*24, order = 10)
+
+## Results
 

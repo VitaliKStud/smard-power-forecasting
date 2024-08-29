@@ -371,7 +371,13 @@ fit <- train_power_consum |>
     Mean = MEAN(PowerConsum),
     Naive = NAIVE(PowerConsum),
     Drift = NAIVE(PowerConsum ~ drift()),
-    ARIMA_A=ARIMA(PowerConsum, stepwise = FALSE, approx = FALSE, greedy=FALSE),
+    ARIMA_A=ARIMA(PowerConsum ~ 
+                    WorkDay 
+                  + MeanLastWeek
+                  + MeanLastTwoDays
+                  + MaxLastOneDays
+                  + MinLastOneDay
+                  , stepwise = TRUE, approx = TRUE, greedy=TRUE),
     # ARIMA = ARIMA(PowerConsum ~
     #         PDQ(D=0)
     #       + pdq(d=0)
@@ -479,6 +485,7 @@ fit |> select(PROPHET) |> gg_tsresiduals()
 fit |> select(Mean) |> gg_tsresiduals()
 fit |> select(Naive) |> gg_tsresiduals()
 fit |> select(Drift) |> gg_tsresiduals()
+fit |> select(ARIMA_A) |> gg_tsresiduals()
 fit |> select(ARIMA) |> gg_tsresiduals()
 
 # cleaned_power_consum_smard_prediction |>
