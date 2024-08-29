@@ -38,7 +38,7 @@ plausible observations for the Power-Consum:
 - Remainded 4559 observations for the last year (2024), year is not complet
 
 
-![TEST](example\\plots\\raw_power_consum.png)
+![TEST](example/plots/raw_power_consum.png)
 Figure 1 Raw Power-Consum
 
 
