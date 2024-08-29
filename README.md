@@ -7,6 +7,7 @@ Based on:
 - [Forecasting: Principles and Practice](https://otexts.com/fpp3/)
 - DOI: [10.1109/TPWRS.2011.2162082](https://ieeexplore.ieee.org/document/5985500) - Short-Term Load Forecasting Based on a Semi-Parametric Additive Model
 - DOI: [10.1109/TPWRS.2009.2036017](https://ieeexplore.ieee.org/document/5345698) - Density Forecasting for Long-Term Peak Electricity Demand
+_ DOI: [10.1080/00031305.2017.1380080](https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1380080) - Forecasting at Scale
 
 Data source: [SMARD](https://www.smard.de/home/downloadcenter/download-marktdaten/)
     

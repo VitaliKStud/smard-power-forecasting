@@ -370,8 +370,8 @@ fit <- train_power_consum |>
           + MaxLastOneDay
           + MinLastOneDay
           # xreg = cbind(fourier(PowerConsum, c(8,4,2))),
-          + fourier(period = "day", K = 8)
-          + fourier(period = "week", K = 4)
+          + fourier(period = "day", K = 12)
+          + fourier(period = "week", K = 5)
           + fourier(period = "year", K = 2),
           order_constraint = p+q <=12 & P+Q <=12
           ),

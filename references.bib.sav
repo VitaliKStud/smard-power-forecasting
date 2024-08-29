@@ -35,20 +35,3 @@
   doi       = {10.1109/tpwrs.2011.2162082},
   publisher = {Institute of Electrical and Electronics Engineers (IEEE)},
 }
-
- 
-@Article{Taylor2018,
-  author    = {Taylor, Sean J. and Letham, Benjamin},
-  journal   = {The American Statistician},
-  title     = {Forecasting at Scale},
-  year      = {2018},
-  issn      = {1537-2731},
-  month     = jan,
-  number    = {1},
-  pages     = {37--45},
-  volume    = {72},
-  doi       = {10.1080/00031305.2017.1380080},
-  publisher = {Informa UK Limited},
-}
-
-@Comment{jabref-meta: databaseType:bibtex;}
