@@ -1,4 +1,6 @@
 
+
+# Load Packages
 ```{r setup, include=FALSE}
 
 # Load Packages
@@ -24,6 +26,8 @@ library(zoo)
 library(corrplot)
 library(scales)
 library(fable.prophet)
+library(mgcv)
+library(MEFM)
 load_all()
 # devtools::document()
 ```
@@ -98,16 +102,14 @@ load_power_consum <- function(path) {
       LastDayWasNotWorkDay = !lag(WorkDay, n=24),
       LastDayWasNotWorkDayAndNowWorkDay = (LastDayWasNotWorkDay & WorkDay),
       NextDayIsNotWorkDayAndNowWorkDay= (WorkDay & !lead(WorkDay, n=24)),
-      LastDayWasHolodiayAndNotWeekend = lag(Holiday, n=24) & !Sa & !So,
-      NextDayIsHolidayAndNotWeekend = lead(Holiday, n=24) & !lead(Sa, n=24) & !lead(So, n=24),
+      LastDayWasHolodiayAndNotWeekend = ifelse((lag(Holiday, n=24) & (!Sa | !So)), 1, 0),
+      NextDayIsHolidayAndNotWeekend = ifelse((lead(Holiday, n=24) & (!lead(Sa, n=24) | !lead(So, n=24))),1,0),
       HolidayName = ifelse(is.na(localName), "Regulärer Tag", localName)
     )
   
   cleaned_power_consum |>
     gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 400)
-  
-  
-  
+
   raw_power_consum <- raw_power_consum |>
     arrange(DateFrom) |>
     mutate(
@@ -128,20 +130,24 @@ load_power_consum <- function(path) {
   return(list(raw_power_consum = raw_power_consum, cleaned_power_consum = cleaned_power_consum))
 }
 
-power_consum_smard_prediction_loaded <- load_power_consum(power_consum_smard_prediction_path)
-raw_power_consum_smard_prediction <- power_consum_smard_prediction_loaded$raw_power_consum
-cleaned_power_consum_smard_prediction <- power_consum_smard_prediction_loaded$cleaned_power_consum
+power_consum_smard_prediction_loaded <- load_power_consum(path=power_consum_smard_prediction_path)
+raw_smard_pred <- power_consum_smard_prediction_loaded$raw_power_consum
+cleaned_smard_pred <- power_consum_smard_prediction_loaded$cleaned_power_consum
 
-cleaned_power_consum_smard_prediction <- cleaned_power_consum_smard_prediction |>
+cleaned_smard_pred <- cleaned_smard_pred |>
   mutate(.model = "SMARD")
-names(cleaned_power_consum_smard_prediction)[names(cleaned_power_consum_smard_prediction) == "PowerConsum"] <- ".mean"
+names(cleaned_smard_pred)[names(cleaned_smard_pred) == "PowerConsum"] <- ".mean"
 
-power_consum_loaded <- load_power_consum(power_consum_path)
+power_consum_loaded <- load_power_consum(path=power_consum_path)
 raw_power_consum <- power_consum_loaded$raw_power_consum
 cleaned_power_consum <- power_consum_loaded$cleaned_power_consum
 
-
-
+rm(power_consum_loaded)
+rm(power_consum_smard_prediction_loaded)
+rm(power_consum_path)
+rm(german_holidays)
+rm(power_consum_smard_prediction_path)
+rm(power_generation_path)
 
 ```
 
@@ -151,13 +157,13 @@ cleaned_power_consum <- power_consum_loaded$cleaned_power_consum
 
 cleaned_power_consum$localName[is.na(cleaned_power_consum$localName)] = "Working-Day"
 
-cleaned_power_consum$MeanLastWeek <- rollapply(cleaned_power_consum$PowerConsum, width = 24*7, FUN = function(x) mean(x[1:(24*7-1)]), align = "right", fill = NA) 
+cleaned_power_consum$MeanLastWeek <- rollapply(cleaned_power_consum$PowerConsum, width = 24*8, FUN = function(x) mean(x[1:(24*8-25)]), align = "right", fill = NA) 
 
-cleaned_power_consum$MeanLastTwoDays <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) mean(x[1:(24*2-1)]), align = "right", fill = NA) 
+cleaned_power_consum$MeanLastTwoDays <- rollapply(cleaned_power_consum$PowerConsum, width = 24*3, FUN = function(x) mean(x[1:(24*3-25)]), align = "right", fill = NA) 
 
-cleaned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*1, FUN = function(x) max(x[1:(24*1-1)]), align = "right", fill = NA) 
+cleaned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) max(x[1:(24*2-25)]), align = "right", fill = NA) 
 
-cleaned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*1, FUN = function(x) min(x[1:(24*1-1)]), align = "right", fill = NA) 
+cleaned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) min(x[1:(24*2-25)]), align = "right", fill = NA) 
 
 
 cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
@@ -195,17 +201,7 @@ week_colors <- c(
   "So" = palette()[2]
 )
 
-working_colors <- c("TRUE" = palette()[1], "FALSE" = palette()[2])
-
-plot_histogram_by_group(
-  cleaned_power_consum,
-  group_name = "WorkDay",
-  file_name = "plots\\workday_histogram.png",
-  colors = working_colors,
-  x="PowerConsum",
-  x_label = "Stromverbrauch [MW]",
-  y_label = "Häufigkeit"
-)
+working_colors <- c("1" = palette()[1], "0" = palette()[2])
 
 plot_histogram_by_group(
   cleaned_power_consum,
@@ -318,26 +314,8 @@ plot_year_month_week_day(
 
 ```{r, echo=TRUE, message=FALSE}
 
-tranfomed_power_consum <- cleaned_power_consum |>
-  mutate(PowerConsum = PowerConsum)
-
-train_power_consum <- tranfomed_power_consum |>
+train_power_consum <- cleaned_power_consum |>
   filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
-
-test_power_consum <- tranfomed_power_consum |>
-  select(
-    # WorkDay,
-    WorkDay,
-    # LastDayWasNotWorkDay,
-    # LastDayWasNotWorkDayAndNowWorkDay,
-    # NextDayIsNotWorkDayAndNowWorkDay,
-    # NextDayIsHolidayAndNotWeekend,
-    MeanLastWeek,
-    MeanLastTwoDays,
-    MaxLastOneDay,
-    MinLastOneDay
-  )
-
 ```
 
 # Fit
@@ -365,35 +343,181 @@ train_power_consum_transformed |>
 
 ```
 
+Starting Model
+
 ```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 10)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_0_2021_2023.rds")
+```
+
+What if no Holiday after before effect
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 10)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_1_2021_2023.rds")
+```
+
+What if period day 8 
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 8)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_2_2021_2023.rds")
+```
+
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 8)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_3_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 8)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_4_2021_2023.rds")
+```
+
+
+```{r, echo=TRUE, message=FALSE}
+
+# /example/model/arima_1
+fit <- train_power_consum |>
+  model(
+    TSLM = TSLM(PowerConsum ~
+          WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 12) # 8 original
+          + fourier(period = "week", K = 24) # 5 original
+          + fourier(period = "year", K = 24)
+          )
+  )
+
+saveRDS(fit, file = "model/tslm_0_2021_2023.rds")
+```
+
+
+```{r, echo=TRUE, message=FALSE}
+
 fit <- train_power_consum |>
   model(
     Mean = MEAN(PowerConsum),
+    )
+
+saveRDS(fit, file = "model/mean_2021_2023.rds")   
+
+fit <- train_power_consum |>
+  model(
     Naive = NAIVE(PowerConsum),
-    Drift = NAIVE(PowerConsum ~ drift()),
-    ARIMA_A=ARIMA(PowerConsum ~ 
-                    WorkDay 
-                  + MeanLastWeek
-                  + MeanLastTwoDays
-                  + MaxLastOneDays
-                  + MinLastOneDay
-                  , stepwise = TRUE, approx = TRUE, greedy=TRUE),
-    # ARIMA = ARIMA(PowerConsum ~
-    #         PDQ(D=0)
-    #       + pdq(d=0)
-    #       # + WorkDay
-    #       + WorkDay
-    #       # + NextDayIsHolidayAndNotWeekend
-    #       + MeanLastWeek
-    #       + MeanLastTwoDays
-    #       + MaxLastOneDay
-    #       + MinLastOneDay
-    #       # xreg = cbind(fourier(PowerConsum, c(8,4,2))),
-    #       + fourier(period = "day", K = 12)
-    #       + fourier(period = "week", K = 5)
-    #       + fourier(period = "year", K = 2),
-    #       order_constraint = p+q <=12 & P+Q <=12
-    #       ),
+    Drift = NAIVE(PowerConsum ~ drift())
+    ) 
+
+saveRDS(fit, file = "model/naive_2021_2023.rds")  
+
+fit <- train_power_consum |>
+  model(
+    Drift = NAIVE(PowerConsum ~ drift())
+    ) 
+
+saveRDS(fit, file = "model/drift_2021_2023.rds")  
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
     PROPHET = prophet(
       PowerConsum ~ 
         MeanLastWeek
@@ -401,98 +525,84 @@ fit <- train_power_consum |>
       + MaxLastOneDay
       + MinLastOneDay
       + WorkDay 
-      + season(period = 24, order = 10) 
-      + season(period = 7*24, order = 5) 
-      + season(period = 365*24, order = 10))
+      + Holiday
+      + LastDayWasHolodiayAndNotWeekend
+      + NextDayIsHolidayAndNotWeekend
+      + season(period = "day", order = 24) 
+      + season(period = "week", order = 5) 
+      + season(period = "year", order = 3))
     )
-    
+
+saveRDS(fit, file = "model/prophet_0_2021_2023.rds")    
 ```
 
+# Load All Models and Metrics
 
+```{r, echo=TRUE, message=FALSE}
+load_all()
+fc <- load_all_model_results(
+  days_to_forecast = 40,
+  months_to_forecast = 6,
+  year_to_forecast = 2024,
+  starting_month = 1,
+  smard_fc = cleaned_smard_pred,
+  real_data = cleaned_power_consum
+)
+
+all_forecasts <- fc$combined_forecasts
+all_forecasts_list <- fc$all_forecasts
+
+metric_results <- calculate_metrics(fc_data = all_forecasts)
+
+rm(fc)
+
+```
+
+# Evaluation
 
 ```{r, echo=TRUE, message=FALSE}
 
-days_to_forecast <- 7
-months_to_forecast <- 1
+month_to_plot <- 1
+days_to_plot <- 7
 
-test <- test_power_consum |>
-  filter(year(DateIndex) == 2024) |>
-  filter(month(DateIndex) >= 1) |>
-  filter(month(DateIndex) <= months_to_forecast) |>
-  filter(day(DateIndex) < days_to_forecast)
-
-data_2024 <- cleaned_power_consum |>
-  filter(year(DateIndex) == 2024) |>
-  filter(month(DateIndex) >= 1) |>
-  filter(month(DateIndex) <= months_to_forecast) |>
-  filter(day(DateIndex) < days_to_forecast)
-
-cleaned_power_consum_smard_prediction_filtered <- cleaned_power_consum_smard_prediction |>
-  filter(year(DateIndex) == 2024) |>
-  filter(month(DateIndex) >= 1) |>
-  filter(month(DateIndex) <= months_to_forecast) |>
-  filter(day(DateIndex) < days_to_forecast)
+filtered_forecast <- all_forecasts |>
+  filter(month(DateIndex) <= month_to_plot) |>
+  filter(day(DateIndex) <= days_to_plot)
 
 
-fc <- fit |>
-  forecast(new_data = test) |>
-  mutate(.mean = .mean) |>
-  as_tsibble(index=DateIndex) |>
-  bind_rows(cleaned_power_consum_smard_prediction_filtered)
-
-results <- data_2024 |>
-  select(DateIndex, PowerConsum) |>
-  as_tibble(index="DateIndex") |>
-  rename(RealPowerConsum = PowerConsum) |>
-  right_join(fc, by = "DateIndex")
-
-results_2 <- data_2024 |>
-  select(DateIndex, PowerConsum) |>
-  as_tibble(index="DateIndex") |>
-  rename(RealPowerConsum = PowerConsum) |>
-  right_join(cleaned_power_consum_smard_prediction_filtered, by = "DateIndex")
-
-result_3 <- bind_rows(results, results_2)
-
-metrics_by_model <- result_3 %>%
-  group_by(.model) %>%  # Group by the .model column
-  summarize(
-    RMSE = sqrt(mean((RealPowerConsum - .mean)^2, na.rm = TRUE)),  # Calculate RMSE
-    MAPE = mean(abs((RealPowerConsum - .mean) / RealPowerConsum), na.rm = TRUE) * 100,  # Calculate MAPE
-    MAE = mean(abs(RealPowerConsum - .mean), na.rm = TRUE)  # Calculate MAE
-  )
-
-fc |>
-  autoplot() + 
-  geom_line(data = data_2024,
-  aes(x = DateIndex, y = PowerConsum, color ="Testdatensatz")) +
-  scale_color_manual(
-      values = c(
-        name = " ",
-        "ARIMA" = "red",
-        "Drift" = "orange",
-        "Mean" = "black",
-        "Naive" = "darkgrey",
-        "Testdatensatz" = "blue",
-        "SMARD" = "lightblue",
-        "PROPHET" = "green",
-        "ARIMA_A" = "red"
-      ))
+ggplot(data = filtered_forecast, aes(x=DateIndex, y=.mean, color=.model)) +
+  geom_line()
 
 
+best_forecast <- metric_results |>
+  filter(!(.model == "SMARD")) |>
+  filter(MAPE == min(MAPE[MAPE > 0])) |>
+  slice(1) |>
+  select(.model)
 
-fit |> select(PROPHET) |> gg_tsresiduals()
-fit |> select(Mean) |> gg_tsresiduals()
-fit |> select(Naive) |> gg_tsresiduals()
-fit |> select(Drift) |> gg_tsresiduals()
-fit |> select(ARIMA_A) |> gg_tsresiduals()
-fit |> select(ARIMA) |> gg_tsresiduals()
+filtered_best_forecast <- all_forecasts |>
+  filter(.model == best_forecast$.model) 
+#   left_join(cleaned_power_consum |> rename(RealPowerConsum = PowerConsum,
+#                                            WorkingDay = WorkDay), by = "DateIndex")
+# 
+# ggplot()+
+#   geom_point(data = filtered_best_forecast, aes(x=RealPowerConsum, y=.mean, color=WorkDay)) +
+#   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red", lwd=1)
 
-# cleaned_power_consum_smard_prediction |>
-#     gg_tsdisplay(.mean, plot_type = "partial", lag = 400)
 
-glance(fit)
-report(fit)
+filtered_best_forecast |>
+  autoplot()
+
+
+# fit |> select(ARIMA) |> gg_tsresiduals()
+# fit |> select(PROPHET) |> gg_tsresiduals()
+# fit |> select(Mean) |> gg_tsresiduals()
+# fit |> select(Naive) |> gg_tsresiduals()
+# fit |> select(Drift) |> gg_tsresiduals()
+# fit |> select(ARIMA_A1) |> gg_tsresiduals()
+# 
+# glance(fit)
+# report(fit)
 ```
 
 

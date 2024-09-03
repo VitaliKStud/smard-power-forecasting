@@ -7,11 +7,13 @@ plot_histogram_by_group <- function(filtered_power_consum,
                                     x,
                                     x_label,
                                     y_label) {
+  filtered_power_consum <- filtered_power_consum |>
+    mutate(Group = as.factor(!!sym(group_name)))
   
   p <-
-    ggplot(filtered_power_consum, aes(x = !!sym(x), fill = !!sym(group_name) )) +
+    ggplot(filtered_power_consum, aes(x = !!sym(x), fill = Group )) +
     geom_histogram(alpha = 0.5, binwidth = 200, position = "dodge") +
-    geom_density(fill=NA, aes(color = !!sym(group_name), y=200 * after_stat(count))) + 
+    geom_density(fill=NA, aes(color = Group, y=200 * after_stat(count))) + 
     theme(legend.position = "bottom",
           strip.text = element_text(size = 12)) +
     labs(x = x_label, y = y_label) +
@@ -19,8 +21,8 @@ plot_histogram_by_group <- function(filtered_power_consum,
       name = " ",
       values = colors,
       labels = c(
-        "TRUE" = "Werktag",
-        "FALSE" = "Feiertag"
+        "1" = "Werktag",
+        "0" = "Feiertag"
       )
     ) +
     scale_color_manual(

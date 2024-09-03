@@ -14,7 +14,8 @@ plot_year_month_week_day <- function(df, date_column, y,
       Year = as.factor(year(date_to_filter)),
       Day = as.factor(day(date_to_filter)),
       DayWithWeek = paste0(as.factor(day(date_to_filter)), as.character(!!sym(day_of_week))),
-      Week = as.factor(week(date_to_filter))
+      Week = as.factor(week(date_to_filter)),
+      Holiday = as.factor(!!sym(holiday))
     )
   
   df_year <- df |>
@@ -37,10 +38,10 @@ plot_year_month_week_day <- function(df, date_column, y,
   day_order <- unique(df_day$DayWithWeek)
   
   
-  year_plot <- ggplot(data = df_year, aes(x = date_to_filter, y = !!sym(y), color=!!sym(holiday))) +
+  year_plot <- ggplot(data = df_year, aes(x = date_to_filter, y = !!sym(y), color=Holiday)) +
     geom_path(aes(group = 1)) +
-    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "darkred"),
-                       labels = c("FALSE" = "Normal Day", "TRUE" = "Holiday")) +
+    scale_color_manual(values = c("0" = "black", "1" = "darkred"),
+                       labels = c("0" = "Normal Day", "1" = "Holiday")) +
     scale_x_datetime(
       date_minor_breaks = "1 month", date_breaks = "2 months",
       date_labels = "%b") +
@@ -52,9 +53,9 @@ plot_year_month_week_day <- function(df, date_column, y,
     )
   ggsave("plots\\raw_years.png", plot = year_plot, width = 20, height = 10, dpi = 300)
   
-  month_plot <- ggplot(data=df_month, aes(x=date_to_filter, y=!!sym(y), color=!!sym(holiday))) +
+  month_plot <- ggplot(data=df_month, aes(x=date_to_filter, y=!!sym(y), color=Holiday)) +
     geom_path(aes(group = 1)) +
-    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) +
+    scale_color_manual(values = c("0" = "black", "1" = "red")) +
     facet_wrap(~ Month, scales = "free_x")+
     labs(
       x = "Days",  
@@ -63,9 +64,9 @@ plot_year_month_week_day <- function(df, date_column, y,
     )
   ggsave("plots\\raw_month.png", plot = month_plot, width = 20, height = 10, dpi = 300)
   
-  week_plot <- ggplot(data=df_week, aes(x=date_to_filter, y=!!sym(y), color=!!sym(holiday))) +
+  week_plot <- ggplot(data=df_week, aes(x=date_to_filter, y=!!sym(y), color=Holiday)) +
     geom_path(aes(group = 1)) +
-    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) +
+    scale_color_manual(values = c("0" = "black", "1" = "red")) +
     facet_wrap(~ Week, scales = "free_x")+
     scale_x_datetime(
       date_minor_breaks = "1 day", date_breaks = "1 day",
@@ -77,9 +78,9 @@ plot_year_month_week_day <- function(df, date_column, y,
     )
   ggsave("plots\\raw_week.png", plot = week_plot, width = 20, height = 10, dpi = 300)
   
-  day_plot <- ggplot(data=df_day, aes(x=date_to_filter, y=!!sym(y), color=!!sym(holiday))) +
+  day_plot <- ggplot(data=df_day, aes(x=date_to_filter, y=!!sym(y), color=Holiday)) +
     geom_path(aes(group = 1)) +
-    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) + 
+    scale_color_manual(values = c("0" = "black", "1" = "red")) + 
     facet_wrap(~ factor(DayWithWeek, levels=day_order), scales = "free_x", ncol=7) +
     scale_x_datetime(
       date_minor_breaks = "1 hour", date_breaks = "4 hours",

@@ -59,15 +59,18 @@
 plot_by_group <- function(filtered_power_consum, group_name, file_name, colors, title, y,
                           x_label, y_label) {
   
+  filtered_power_consum <- filtered_power_consum |>
+    mutate(Group = as.factor(!!sym(group_name)))
+  
   agg_df <- aggregate(filtered_power_consum[[y]], 
-                      by=list(filtered_power_consum[[group_name]]),
+                      by=list(filtered_power_consum$Group),
                       FUN=mean)
   
-  names(agg_df) <- c(group_name, "GridLoadMean")
+  names(agg_df) <- c("Group", "GridLoadMean")
   max_value <- max(filtered_power_consum[[y]])
   
   p <-
-    ggplot(filtered_power_consum, aes(x = Year, y = !!sym(y), fill = !!sym(group_name))) +
+    ggplot(filtered_power_consum, aes(x = Year, y = !!sym(y), fill = Group)) +
     geom_boxplot() + 
     geom_text(
       data = agg_df,
@@ -77,7 +80,7 @@ plot_by_group <- function(filtered_power_consum, group_name, file_name, colors, 
       hjust = 1.1, 
       vjust = 0.5
     ) +
-    facet_wrap(as.formula(paste("~", group_name))) + 
+    facet_wrap(as.formula(paste("~", "Group"))) + 
     scale_fill_manual(values = colors) +  
     theme(
       legend.position = "none", 

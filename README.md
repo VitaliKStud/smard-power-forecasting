@@ -110,6 +110,8 @@ Within the exploration there were found few features, that are influencing Power
 - Max Power-Consum of last day
 - Min Power-Consum of last day
 
+Similar as discussed in DOI: [10.1109/TPWRS.2011.2162082](https://ieeexplore.ieee.org/document/5985500) - Short-Term Load Forecasting Based on a Semi-Parametric Additive Model
+
 ## Comlex seasonality
 
 There is a complex seasonality. For the hourly resolution there is a yearly, weekly and a daily 
