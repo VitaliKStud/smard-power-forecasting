@@ -1,15 +1,16 @@
 
 
 load_all_model_results <- function(days_to_forecast, months_to_forecast,
-                                   year_to_forecast, starting_month, smard_fc, real_data) {
+                                   year_to_forecast, starting_month, smard_fc, real_data,
+                                   path_to_safe) {
   
   all_forecasts <- list()
+  raw_forecasts <- list()
 
   for(file in list.files("model")) {
     
-    
-    fit <- readRDS(paste0("model/", file))
     print(file)
+    fit <- readRDS(paste0("model/", file))
     test_data <- load_test_data(model_name=file, 
                                 transformed_power_consum = real_data)
     
@@ -19,6 +20,11 @@ load_all_model_results <- function(days_to_forecast, months_to_forecast,
       filter(month(DateIndex) <= months_to_forecast) |>
       filter(day(DateIndex) < days_to_forecast) |>
       as_tsibble()
+    
+    raw_fc <- fit |>
+      forecast(new_data = filtered_test_data)
+    raw_forecasts[[file]] <- raw_fc
+    
     
     fc <- fit |>
       forecast(new_data = filtered_test_data) |>
@@ -46,7 +52,7 @@ load_all_model_results <- function(days_to_forecast, months_to_forecast,
     bind_rows() |>
     bind_rows(smard_fc) |>
     bind_rows(filtered_real_data) |>
-    select(.model, DateIndex, PowerConsum, .mean, WorkDay, Holiday)
+    select(.model, DateIndex, PowerConsum, .mean, WorkDay, Holiday, WorkdayHolidayWeekend)
   
-  return (list(combined_forecasts = combined_forecasts, all_forecasts = all_forecasts))
+  return (list(combined_forecasts = combined_forecasts, raw_forecasts = raw_forecasts))
 }

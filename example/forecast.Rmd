@@ -99,6 +99,8 @@ load_power_consum <- function(path) {
       Sa = Weekday == "Sa",  
       So = Weekday == "So",
       Holiday = ifelse(Date %in% german_holidays$date, 1, 0),
+      WorkdayHolidayWeekend = paste0(ifelse(Holiday, "Feiertag", "Kein Feiertag"), ifelse(Weekday %in% c("Sa", "So"), "\nWochenende","\nKein Wochenende")),
+      HolidayAndWorkDay = ifelse((Holiday & !(Weekday %in% c("Sa", "So"))), 1, 0),
       LastDayWasNotWorkDay = !lag(WorkDay, n=24),
       LastDayWasNotWorkDayAndNowWorkDay = (LastDayWasNotWorkDay & WorkDay),
       NextDayIsNotWorkDayAndNowWorkDay= (WorkDay & !lead(WorkDay, n=24)),
@@ -117,7 +119,7 @@ load_power_consum <- function(path) {
       DuplicatedDate = duplicated(DateFrom),
       Year = year(DateFrom)
     )
-  
+
   plot_raw_data(
     df = raw_power_consum,
     x = "DateFrom",
@@ -201,7 +203,28 @@ week_colors <- c(
   "So" = palette()[2]
 )
 
-working_colors <- c("1" = palette()[1], "0" = palette()[2])
+
+working_colors <- c("1" = "#2E9FDF", "0" = "#FC4E07")
+
+whw_colors <- c(
+  "Feiertag\nKein Wochenende" = "black",
+  "Kein Feiertag\nKein Wochenende" = "red",
+  "Kein Feiertag\nWochenende" = "orange",
+  "Feiertag\nWochenende" = "blue"
+)
+
+plot_histogram_by_group(
+  cleaned_power_consum,
+  group_name = "WorkdayHolidayWeekend",
+  file_name = "plots\\workday_holiday_weekend_histogram.png",
+  colors = whw_colors,
+  x="PowerConsum",
+  x_label = "Stromverbrauch [MW]",
+  y_label = "Häufigkeit",
+  name_0 = "Wochenende oder Feiertage",
+  name_1 = "Werktag"
+)
+
 
 plot_histogram_by_group(
   cleaned_power_consum,
@@ -210,9 +233,34 @@ plot_histogram_by_group(
   colors = working_colors,
   x="PowerConsum",
   x_label = "Stromverbrauch [MW]",
-  y_label = "Häufigkeit"
+  y_label = "Häufigkeit",
+  name_0 = "Wochenende oder Feiertage",
+  name_1 = "Werktag"
 )
 
+plot_histogram_by_group(
+  cleaned_power_consum,
+  group_name = "Holiday",
+  file_name = "plots\\holiday_histogram.png",
+  colors = working_colors,
+  x="PowerConsum",
+  x_label = "Stromverbrauch [MW]",
+  y_label = "Häufigkeit",
+  name_0 = "Werktag oder Wochenende",
+  name_1 = "Feiertag"
+)
+
+plot_histogram_by_group(
+  cleaned_power_consum,
+  group_name = "HolidayAndWorkDay",
+  file_name = "plots\\holiday_workday_histogram.png",
+  colors = working_colors,
+  x="PowerConsum",
+  x_label = "Stromverbrauch [MW]",
+  y_label = "Häufigkeit",
+  name_0 = "Wochenende oder Werktag",
+  name_1 = "Feiertag am Werktag"
+)
 
 plot_by_group(
   cleaned_power_consum,
@@ -466,6 +514,30 @@ saveRDS(fit, file = "model/arima_4_2021_2023.rds")
 
 
 ```{r, echo=TRUE, message=FALSE}
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = 24, K = 8)
+          + fourier(period = 24*7, K = 5)
+          + fourier(period = 24*365.25, K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_5_2021_2023.rds")
+```
+
+
+```{r, echo=TRUE, message=FALSE}
 
 # /example/model/arima_1
 fit <- train_power_consum |>
@@ -479,8 +551,8 @@ fit <- train_power_consum |>
           + MinLastOneDay
           + LastDayWasHolodiayAndNotWeekend
           + NextDayIsHolidayAndNotWeekend
-          + fourier(period = "day", K = 12) # 8 original
-          + fourier(period = "week", K = 24) # 5 original
+          + fourier(period = "day", K = 12)
+          + fourier(period = "week", K = 24)
           + fourier(period = "year", K = 24)
           )
   )
@@ -536,7 +608,43 @@ fit <- train_power_consum |>
 saveRDS(fit, file = "model/prophet_0_2021_2023.rds")    
 ```
 
-# Load All Models and Metrics
+```{r, echo=TRUE, message=FALSE}
+
+train_power_consum_a  <- train_power_consum |>
+  mutate(HolidayXREG = Holiday * MeanLastTwoDays)
+
+xreg_holiday <- list(train_power_consum_a$HolidayXREG) 
+```
+
+
+```{r, echo=TRUE, message=FALSE}
+
+# TODO HERE 
+# Finde richtige holiday handling
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = 24, K = 8)
+          + fourier(period = 24*7, K = 5)
+          + fourier(period = 24*365.25, K = 3)
+          + xreg(fixed = xreg_holiday)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_6_2021_2023.rds")
+```
+
+# Load All Models and Metrics Evaluation
 
 ```{r, echo=TRUE, message=FALSE}
 load_all()
@@ -550,60 +658,29 @@ fc <- load_all_model_results(
 )
 
 all_forecasts <- fc$combined_forecasts
-all_forecasts_list <- fc$all_forecasts
+raw_fc <- fc$raw_forecasts
+all_fits <- fc$all_fits
 
 metric_results <- calculate_metrics(fc_data = all_forecasts)
 
 rm(fc)
 
+name_of_best_model <- plot_forecast(
+  all_forecasts = all_forecasts,
+  metric_results = metric_results,
+  cleaned_power_consum = cleaned_power_consum,
+  raw_fc = raw_fc,
+  month_to_plot = 1,
+  days_to_plot = 40
+)
+
+best_fit <- readRDS(paste0("model/", name_of_best_model))
+best_fit |>
+  gg_tsresiduals()
+ 
+glance(best_fit)
+report(best_fit)
+
 ```
-
-# Evaluation
-
-```{r, echo=TRUE, message=FALSE}
-
-month_to_plot <- 1
-days_to_plot <- 7
-
-filtered_forecast <- all_forecasts |>
-  filter(month(DateIndex) <= month_to_plot) |>
-  filter(day(DateIndex) <= days_to_plot)
-
-
-ggplot(data = filtered_forecast, aes(x=DateIndex, y=.mean, color=.model)) +
-  geom_line()
-
-
-best_forecast <- metric_results |>
-  filter(!(.model == "SMARD")) |>
-  filter(MAPE == min(MAPE[MAPE > 0])) |>
-  slice(1) |>
-  select(.model)
-
-filtered_best_forecast <- all_forecasts |>
-  filter(.model == best_forecast$.model) 
-#   left_join(cleaned_power_consum |> rename(RealPowerConsum = PowerConsum,
-#                                            WorkingDay = WorkDay), by = "DateIndex")
-# 
-# ggplot()+
-#   geom_point(data = filtered_best_forecast, aes(x=RealPowerConsum, y=.mean, color=WorkDay)) +
-#   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red", lwd=1)
-
-
-filtered_best_forecast |>
-  autoplot()
-
-
-# fit |> select(ARIMA) |> gg_tsresiduals()
-# fit |> select(PROPHET) |> gg_tsresiduals()
-# fit |> select(Mean) |> gg_tsresiduals()
-# fit |> select(Naive) |> gg_tsresiduals()
-# fit |> select(Drift) |> gg_tsresiduals()
-# fit |> select(ARIMA_A1) |> gg_tsresiduals()
-# 
-# glance(fit)
-# report(fit)
-```
-
 
 

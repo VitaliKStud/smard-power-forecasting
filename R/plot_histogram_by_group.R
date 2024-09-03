@@ -6,7 +6,9 @@ plot_histogram_by_group <- function(filtered_power_consum,
                                     colors,
                                     x,
                                     x_label,
-                                    y_label) {
+                                    y_label,
+                                    name_0,
+                                    name_1) {
   filtered_power_consum <- filtered_power_consum |>
     mutate(Group = as.factor(!!sym(group_name)))
   
@@ -15,14 +17,14 @@ plot_histogram_by_group <- function(filtered_power_consum,
     geom_histogram(alpha = 0.5, binwidth = 200, position = "dodge") +
     geom_density(fill=NA, aes(color = Group, y=200 * after_stat(count))) + 
     theme(legend.position = "bottom",
-          strip.text = element_text(size = 12)) +
+          strip.text = element_text(size = 10)) +
     labs(x = x_label, y = y_label) +
     scale_fill_manual(
       name = " ",
       values = colors,
       labels = c(
-        "1" = "Werktag",
-        "0" = "Feiertag"
+        "1" = name_1,
+        "0" = name_0
       )
     ) +
     scale_color_manual(
