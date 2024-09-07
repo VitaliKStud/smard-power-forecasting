@@ -121,7 +121,7 @@ plot_year_month_week_day <- function(df, date_column, y,
     )
   ggsave("plots\\raw_month.png", plot = month_plot, width = 20, height = 10, dpi = 300)
   
-  week_plot <- ggplot(df_week |> mutate(week_color = ifelse(Week == "1" | Week == "52" | 
+  week_plot <- ggplot(df |> mutate(week_color = ifelse(Week == "1" | Week == "52" | 
                                                               Week == "53",
                                                             "Anfang und Ende des Jahres", 
                                                             "Regulaere Zeit")), 
