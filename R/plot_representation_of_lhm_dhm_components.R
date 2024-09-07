@@ -43,16 +43,16 @@ plot_representation_of_lhm_dhm_components <- function(raw_fc_ensembled, path_dhm
   
   p <- ggplot(fc_v0_arima, aes(x=DateIndex)) +
     geom_line(aes(y = PowerConsum, color = "PowerConsum")) +
-    geom_line(aes(y = .mean, color = "DHM")) +
+    geom_line(aes(y = .mean, color = "DHR")) +
     geom_line(aes(y = linear_fc_before, color = "LHM")) +
-    geom_line(aes(y = .mean + linear_fc_before, color = "LHM + DHM")) +
+    geom_line(aes(y = .mean + linear_fc_before, color = "LHM + DHR")) +
     scale_color_manual(
       name = "Legend",
       values = c(
         "PowerConsum" = "#2E9FDF",
-        "DHM" = "orange",
+        "DHR" = "orange",
         "LHM" = "black",
-        "LHM + DHM" = "#FC4E07"
+        "LHM + DHR" = "#FC4E07"
       )
     )
 

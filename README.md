@@ -425,6 +425,9 @@ Figures 8-11 (red are not working days) represent this lagged values against the
 
 There is a light correlation for this generated features. 
 
+    # Check Correlation
+    cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
+
 | Feature                                  | Correlation with PowerConsum |
 |------------------------------------------|------------------------------|
 | HolidaySmoothed                          | -0.556194                    |
@@ -445,35 +448,75 @@ Figure 10 Power-Consum - MaxLastOneDay
 ![TEST](example/plots/MinLastOneDay.png)
 Figure 11 Power-Consum - MinLastOneDay
 
-## Features and Modeling
-
-Within the exploration there were found few features, that are influencing Power-Consum:
-
-- Holidays effect
-- Day of the Week 
-- Mean Power-Consum of last week
-- Mean Power-Consum of last two days
-- Max Power-Consum of last day
-- Min Power-Consum of last day
-
-
-## Comlex seasonality
+## ACF PACF and STL decomposition plots / complex seasonality
 
 There is a complex seasonality. For the hourly resolution there is a yearly, weekly and a daily 
-seasonality. Which needs to be tracked by the model. 
+seasonality. Which needs to be tracked by the model. The solution here is as discussed in
+[Forecasting: Principles and Practice Chapter 12.1 Complex seasonality](https://otexts.com/fpp3/complexseasonality.html)
+to use fourier-terms to represent and assemble via cos() and sin() the complex seasonality.
 
-## Transformation, Train and Test Dataset
+We can take a small view on the ACF and PACF plot, there are few significant spikes, but
+it is just the representation of 96 lagged values. If we take the ~9000 lagged Observations for a year there
+would be a complex seasonality. That's why it is easier to go with fourier-term. It also didn't work well
+just finding PDQ and pdq components by 
 
-Before we start with modeling we need to check ACF, PACF and also the STL-Decomposition.
-Probably there is a need of transformation for the Power-Consum (Box-Cox, Log). 
-This will be also involved to fit the best model.
+    ARIMA(...
+    stepwise=FALSE,
+    greedy=FALSE,
+    approx=FALSE)
 
-## Model
+itself. Also the training time increases dramatically without the fourier-terms. 
 
-To compare the best model there are few simple approaches, like the MEAN, NAIVE and DRIFT methods.
-To compare the models we use metrics MAE and MAPE. 
+![TEST](example/plots/power_consum_acf_pacf.png)
+Figure 12 Power-Consum - ACF PACF Plot
 
-### LHM + DHR (Best Model)
+---
+
+# Features Selection
+
+Best feature combination found in this work are:
+
+  + MeanLastWeek
+  + WorkDay
+  + EndOfTheYear
+  + FirstWeekOfTheYear
+  + MeanLastTwoDays
+  + MaxLastOneDay
+  + MinLastOneDay
+  + fourier(period = "day", K = 6)
+  + fourier(period = "week", K = 7)
+  + fourier(period = "year", K = 3)
+  + HolidaySmoothed and Holiday
+
+
+---
+
+# Model
+
+To compare the models we use metrics MAE and MAPE. SMARD is the model of "Bundesnetzagentur" from 
+the SMARD page. Prophet model was also tried out, performed solid, but not good enough.
+
+The SMARD forecasted values reached a MAPE of 3.6%. 
+
+Training-Data:
+
+- 2021-2023 to forecast 2024 (first 6 months) 
+- 2020-2022 to forecast 2023 for the best model evaluation
+- 2019-2021 to forecast 2022 for the best model evaluation
+
+The best model found so far war LHM + DHR (linear-harmonic-model + dynamic-harmonic-regression)
+
+The idea ist to ensemble a linear model with ARIMA model. Because it was hard for ARIMA model
+to deal with dummy-variables for Holidays. So the ensembled model helped out. 
+
+---
+
+## LHM + DHR (Best Model) - version_5 (MAPE: 3.8%)
+    train_power_consum <- cleaned_power_consum |>
+        filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
+
+    generate_models(model_name = "model/mean_naive_drift",
+                    train_power_consum = train_power_consum)
 
     train_power_consum_v5 <- train_power_consum |>
       mutate(HolidaySmoothed = Holiday + sin(2 * pi * (as.numeric(Hour)+1) / 24))
@@ -508,44 +551,97 @@ To compare the models we use metrics MAE and MAPE.
     
     saveRDS(fit, file = "ensemble_model/version_5/arima_2021_2023.rds")
 
+We could visualize the effect and how the model works. Figure 13 shows the idea behind this model. 
+First of all we fit the LHM model and calculate the residuals. Train the DHR model by the residuals 
+and sum up both. It's kinda mirror on the LHM and push the values back on the top.
+
+For the LHM model we use here a simple approach a sinus curve that repeats every 24 hours and decrease or
+increase on Holidays or workdays. 
+
+By forecasting LHM on new data we can forecast the residuals for new data. Residuals + LHM shift the
+values back to the "correct" position.
+
+
+![TEST](example/plots/lhm_dhm_representation.png)
+Figure 13 LHM + DHR Model representation
+
+--- 
+
 ## Results
 
+A solid score of MAPE 3.8% for version_5 (LHM + DHR Model).  
 
-| Index | Model Name                  | RMSE      | MAPE      | MAE       | Ensembled |
-|-------|-----------------------------|-----------|-----------|-----------|-----------|
-| 2     | RealObservations             | 0.000     | 0.000000  | 0.000     | TRUE      |
-| 3     | SMARD                        | 2480.693  | 3.602140  | 1869.466  | FALSE     |
-| 4     | SMARD                        | 2480.693  | 3.602140  | 1869.466  | TRUE      |
-| 5     | version_5                    | 2626.807  | 3.816012  | 1937.670  | TRUE      |
-| 6     | version_0                    | 2613.258  | 3.846888  | 1946.314  | TRUE      |
-| 7     | version_7                    | 2770.359  | 4.107272  | 2076.045  | TRUE      |
-| 8     | version_8                    | 2775.441  | 4.146788  | 2091.153  | TRUE      |
-| 9     | version_9                    | 2887.179  | 4.177841  | 2100.381  | TRUE      |
-| 10    | version_6                    | 2906.242  | 4.216517  | 2142.092  | TRUE      |
-| 11    | arima_14_2021_2023.rds       | 3208.735  | 4.389492  | 2207.395  | FALSE     |
-| 12    | arima_18_2021_2023.rds       | 3208.735  | 4.389492  | 2207.395  | FALSE     |
-| 13    | version_4                    | 2875.929  | 4.535388  | 2255.645  | TRUE      |
-| 14    | version_2                    | 2905.990  | 4.580770  | 2279.624  | TRUE      |
-| 15    | arima_9_2021_2023.rds        | 3267.160  | 4.611857  | 2302.918  | FALSE     |
-| 16    | arima_2_2021_2023.rds        | 3251.390  | 4.614028  | 2301.447  | FALSE     |
-| 17    | arima_4_2021_2023.rds        | 3251.390  | 4.614028  | 2301.447  | FALSE     |
-| 18    | arima_5_2021_2023.rds        | 3251.390  | 4.614028  | 2301.447  | FALSE     |
-| 19    | arima_13_2021_2023.rds       | 3283.745  | 4.619636  | 2307.415  | FALSE     |
-| 20    | arima_10_2021_2023.rds       | 3265.913  | 4.625508  | 2314.395  | FALSE     |
-| 21    | arima_0_2021_2023.rds        | 3269.009  | 4.645944  | 2317.138  | FALSE     |
-| 22    | arima_17_2021_2023.rds       | 3269.009  | 4.645944  | 2317.138  | FALSE     |
-| 23    | arima_16_2021_2023.rds       | 3298.902  | 4.673116  | 2334.857  | FALSE     |
-| 24    | arima_1_2021_2023.rds        | 3312.429  | 4.696342  | 2340.193  | FALSE     |
-| 25    | arima_8_2021_2023.rds        | 3332.217  | 4.716612  | 2358.085  | FALSE     |
-| 26    | arima_11_2021_2023.rds       | 3358.020  | 4.758970  | 2388.791  | FALSE     |
-| 27    | arima_12_2021_2023.rds       | 3430.191  | 5.022772  | 2495.067  | FALSE     |
-| 28    | arima_7_2021_2023.rds        | 3475.671  | 5.049287  | 2510.903  | FALSE     |
-| 29    | version_3                    | 3546.729  | 5.064654  | 2570.530  | TRUE      |
-| 30    | arima_15_2021_2023.rds       | 3734.584  | 5.165147  | 2606.661  | FALSE     |
-| 31    | arima_6_2021_2023.rds        | 3748.583  | 5.375326  | 2723.837  | FALSE     |
-| 32    | version_1                    | 4495.568  | 6.483477  | 3229.647  | TRUE      |
-| 33    | arima_3_2021_2023.rds        | 4558.982  | 6.953247  | 3453.387  | FALSE     |
-| 34    | tslm_0_2021_2023.rds         | 6760.994  | 11.189119 | 5694.949  | FALSE     |
-| 35    | mean_2021_2023.rds           | 9489.303  | 16.406032 | 8101.476  | FALSE     |
-| 36    | naive_2021_2023.rds          | 14699.338 | 20.797370 | 12130.587 | FALSE     |
-| 37    | drift_2021_2023.rds          | 14763.692 | 20.917883 | 12200.002 | FALSE     |
+
+Lets's take a deeper look if we would use just the ARIMA model (arima_14). Figure 14 represents
+the results for this model. We can see the holidays (orange), Weekend (red) and regular day (blue).
+There are significant outliers for the holidays, even though there was a dummy-variable for the ARIMA model
+it couldn't catch the holidays correctly. 
+
+![TEST](example/plots/real_to_fc_arima_14_2021_2023.rds.png)
+Figure 14 Forecast vs Actual Values ARIMA
+
+On the other hand the LHM + DHR Model shows a better performence for the holidays. Figure 15 represents
+it.
+
+![TEST](example/plots/real_to_fc_version_5.png)
+Figure 15 Forecast vs Actual Values LHM + DHR
+
+Figure 16 shows the forecast for january 2024. It looks reasonable.
+
+![TEST](example/plots/version_5.png)
+Figure 16 Forecast vs Actual Values LHM + DHR
+
+Also the Residuals for the model compared with the SMARD model looks fine. There are few spikes,
+that could be significant and may be prepared better by modeling. But overall a solid result.
+
+![TEST](example/plots/raw_smard_lhr_dhr_res.png)
+Figure 17 Residuals LHM + DHR
+
+![TEST](example/plots/smard_lhm_dhr_res_histogram.png)
+Figure 18 Residuals LHM + DHR
+
+
+| Index | Model Name              | RMSE      | MAPE      | MAE       | Ensembled |
+|-------|-------------------------|-----------|-----------|-----------|-----------|
+| 2     | RealObservations        | 0.000     | 0.000000  | 0.000     | TRUE      |
+| 3     | SMARD                   | 2480.693  | 3.602140  | 1869.466  | FALSE     |
+| 4     | SMARD                   | 2480.693  | 3.602140  | 1869.466  | TRUE      |
+| 5     | version_5               | 2626.807  | 3.816012  | 1937.670  | TRUE      |
+| 6     | version_0               | 2613.258  | 3.846888  | 1946.314  | TRUE      |
+| 7     | version_7               | 2770.359  | 4.107272  | 2076.045  | TRUE      |
+| 8     | version_8               | 2775.441  | 4.146788  | 2091.153  | TRUE      |
+| 9     | version_9               | 2887.179  | 4.177841  | 2100.381  | TRUE      |
+| 10    | version_6               | 2906.242  | 4.216517  | 2142.092  | TRUE      |
+| 11    | arima_14_2021_2023.rds  | 3208.735  | 4.389492  | 2207.395  | FALSE     |
+| 12    | arima_18_2021_2023.rds  | 3208.735  | 4.389492  | 2207.395  | FALSE     |
+| 13    | version_4               | 2875.929  | 4.535388  | 2255.645  | TRUE      |
+| 14    | version_2               | 2905.990  | 4.580770  | 2279.624  | TRUE      |
+| 15    | arima_9_2021_2023.rds   | 3267.160  | 4.611857  | 2302.918  | FALSE     |
+| 16    | arima_2_2021_2023.rds   | 3251.390  | 4.614028  | 2301.447  | FALSE     |
+| 17    | arima_4_2021_2023.rds   | 3251.390  | 4.614028  | 2301.447  | FALSE     |
+| 18    | arima_5_2021_2023.rds   | 3251.390  | 4.614028  | 2301.447  | FALSE     |
+| 19    | arima_13_2021_2023.rds  | 3283.745  | 4.619636  | 2307.415  | FALSE     |
+| 20    | arima_10_2021_2023.rds  | 3265.913  | 4.625508  | 2314.395  | FALSE     |
+| 21    | arima_0_2021_2023.rds   | 3269.009  | 4.645944  | 2317.138  | FALSE     |
+| 22    | arima_17_2021_2023.rds  | 3269.009  | 4.645944  | 2317.138  | FALSE     |
+| 23    | arima_16_2021_2023.rds  | 3298.902  | 4.673116  | 2334.857  | FALSE     |
+| 24    | arima_1_2021_2023.rds   | 3312.429  | 4.696342  | 2340.193  | FALSE     |
+| 24    | prophet_0_2021_2023.rds | 3044.849  | 4.711527  | 2435.572  | FALSE     |
+| 25    | arima_8_2021_2023.rds   | 3332.217  | 4.716612  | 2358.085  | FALSE     |
+| 26    | arima_11_2021_2023.rds  | 3358.020  | 4.758970  | 2388.791  | FALSE     |
+| 27    | arima_12_2021_2023.rds  | 3430.191  | 5.022772  | 2495.067  | FALSE     |
+| 28    | arima_7_2021_2023.rds   | 3475.671  | 5.049287  | 2510.903  | FALSE     |
+| 29    | version_3               | 3546.729  | 5.064654  | 2570.530  | TRUE      |
+| 30    | arima_15_2021_2023.rds  | 3734.584  | 5.165147  | 2606.661  | FALSE     |
+| 31    | arima_6_2021_2023.rds   | 3748.583  | 5.375326  | 2723.837  | FALSE     |
+| 32    | version_1               | 4495.568  | 6.483477  | 3229.647  | TRUE      |
+| 33    | arima_3_2021_2023.rds   | 4558.982  | 6.953247  | 3453.387  | FALSE     |
+| 34    | tslm_0_2021_2023.rds    | 6760.994  | 11.189119 | 5694.949  | FALSE     |
+| 35    | mean_2021_2023.rds      | 9489.303  | 16.406032 | 8101.476  | FALSE     |
+| 36    | naive_2021_2023.rds     | 14699.338 | 20.797370 | 12130.587 | FALSE     |
+| 37    | drift_2021_2023.rds     | 14763.692 | 20.917883 | 12200.002 | FALSE     |
+
+---
+
+# Conclusion
+

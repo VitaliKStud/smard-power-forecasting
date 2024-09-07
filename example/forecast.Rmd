@@ -333,6 +333,7 @@ plot_year_month_week_day(
 ```{r, echo=TRUE, message=FALSE}
 
 p <-  cleaned_power_consum |>
+  filter(year(DateIndex) == 2023, week(DateIndex) < 10) |>
   model(STL(
     PowerConsum ~ season(period = 24 * 365.25)
     + season(period = 24 * 7)
