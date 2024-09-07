@@ -9,8 +9,20 @@ generate_models(model_name, train_power_consum)
 \arguments{
 \item{model_name}{can be for example "model/arima_0_2021_2023.rds".}
 
-\item{train_power_consum}{TODO:}
+\item{train_power_consum}{Check example.}
 }
 \description{
-Can create a fit
+Can create a fit for a model_name. This is more like a documentation for every
+model. So if you want to add some models, you should document them here and expand
+a "if" case.
+}
+\examples{
+\dontrun{
+train_power_consum <- cleaned_power_consum |>
+  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
+
+generate_models(model_name = "model/mean_naive_drift",
+                train_power_consum = train_power_consum)
+}
+
 }

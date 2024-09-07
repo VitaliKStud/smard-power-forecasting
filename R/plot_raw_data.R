@@ -1,5 +1,24 @@
-
-
+#' Will plot Raw Time Series with missing values and duplicated values.
+#'
+#' @param df Time Series or a DataFrame you want to Plot.
+#' @param x x-Values.
+#' @param y y-Values.
+#' @param color Column for duplicated_values (TRUE or FALSE if duplicated)
+#' @param missing_value Column where values are missing within a Time-Series (TRUE or FALSE if missing)
+#' @param file_name Where the plot will be safed.
+#'
+#' @examples
+#' \dontrun{
+#' plot_raw_data(
+#' df = raw_data,
+#' x = "DateFrom",
+#' y = "PowerConsum",
+#' color = "DuplicatedDate",
+#' missing_value = "MissingValue",
+#' file_name = "plots\\raw_data.png"
+#' )
+#' }
+#' 
 plot_raw_data <- function(df, x, y, color, missing_value, file_name) {
   duplicated_data <- df |>
     filter(!!sym(color) == TRUE)

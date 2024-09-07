@@ -1,3 +1,32 @@
+#' Will load the correct test-data for any model.
+#' 
+#' Any logic can be defined here, how the test-data should look like for any model.
+#'
+#' @param model_name Could be "arima_1_2021_2023.rds" or "version_0"
+#' @param transformed_power_consum Could be cleaned_power_consum. Check example.
+#'
+#' @return test_power_consum. Correct test-data for any model.
+#'
+#' @examples
+#' \dontrun{
+#' # Load PowerConsum Data
+#' power_consum_loaded <- load_power_consum(path=power_consum_path)
+#' raw_power_consum <- power_consum_loaded$raw_data
+#' cleaned_power_consum <- power_consum_loaded$cleaned_data
+#' 
+#' cleaned_power_consum$localName[is.na(cleaned_power_consum$localName)] = "Working-Day"
+#' 
+#' aned_power_consum$MeanLastWeek <- rollapply(cleaned_power_consum$PowerConsum, width = 24*8, FUN = function(x) mean(x[1:(24*8-25)]), align = "right", fill = NA) 
+#' 
+#' aned_power_consum$MeanLastTwoDays <- rollapply(cleaned_power_consum$PowerConsum, width = 24*3, FUN = function(x) mean(x[1:(24*3-25)]), align = "right", fill = NA) 
+#' 
+#' aned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) max(x[1:(24*2-25)]), align = "right", fill = NA) 
+#' 
+#' aned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) min(x[1:(24*2-25)]), align = "right", fill = NA) 
+#' 
+#' load_test_data("version_0", cleaned_power_consum)
+#' }
+#' 
 
 
 load_test_data <- function(model_name, transformed_power_consum) {
@@ -196,7 +225,7 @@ load_test_data <- function(model_name, transformed_power_consum) {
         Hour,
         HolidayExtended,
         HolidaySmoothed
-      )
+      ) 
   }
   
   if (model_name == "version_9") {

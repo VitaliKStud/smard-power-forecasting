@@ -2,16 +2,40 @@
 #'
 #' This function will load all LHM and DHM models and combine them together, make forecasts.
 #'
-#' @param days_to_forecast i.r. can be more then 32 will forecast max. of this days
-#' @param months_to_forecast Will Forecast the number of this months
-#' @param year_to_forecast Will Forecast this year
-#' @param starting_month Should be 1 (January) if your Fit ends on 31.12
-#' @param real_data Check \link{example/forecast.Rmd} should be cleaned_power_consum
-#' @param smard_fc Data of smard_fc check \link{example/forecast.Rmd} should be cleaned_smard_pred
+#' @param days_to_forecast Number of Days you want to include in your Forecast. If you need to forecast more then
+#' 1 month you could use days_to_forecast > 31.
+#' @param months_to_forecast Number of months you want to include in your Forecast.
+#' @param year_to_forecast The year you want to forecast.
+#' @param starting_month Depend on where you fit ends, you need a "starting_month" Could be 1 for January.
+#' @param smard_fc SMARD Forecast Data
+#' @param real_data Cleaned PowerConsum Data
+#' @param model_path Should be the folder with "Versions"
+#' 
+#' #' Use \link{load_power_consum()} here to get "smard_fc" and "real_data"
+#'
+#' @return list(all_forecasts = combined_forecasts, raw_forecasts = raw_forecasts). Will return a list of combined Forecasts
+#' and Raw Forecasts (nested).
+#' @export
+#'
+#' @examples
+#' 
+#' \dontrun{
+#' ensembled_fc <- load_ensembled_models(
+#'   days_to_forecast = 40,
+#'   months_to_forecast = 6,
+#'   year_to_forecast = 2024,
+#'   starting_month = 1,
+#'   real_data = cleaned_power_consum,
+#'   smard_fc = cleaned_smard_pred,
+#'   model_path = "ensemble_model"
+#' )
+#' all_forecasts_ensembled <- ensembled_fc$all_forecasts
+#' raw_fc_ensembled <- ensembled_fc$raw_forecasts
+#' }
 
 load_ensembled_models <- function(days_to_forecast, months_to_forecast,
                                   year_to_forecast, starting_month, real_data,
-                                  smard_fc) {
+                                  smard_fc, model_path) {
   
     all_forecasts <- list()
     raw_forecasts <- list()
@@ -25,16 +49,16 @@ load_ensembled_models <- function(days_to_forecast, months_to_forecast,
       mutate(.model = "RealObservations",
              .mean = PowerConsum)
   
-    for (version in list.files("ensemble_model")) {
+    for (version in list.files(model_path)) {
       print(version)
-      for(file in list.files(paste0("ensemble_model/", version))) {
+      for(file in list.files(paste0(model_path, "/", version))) {
         
         if (grepl("holiday", file)) {
-          full_path_holiday <- paste0("ensemble_model/",version,"/",file)
+          full_path_holiday <- paste0(model_path, "/",version,"/",file)
         }
         
         if (grepl("arima", file)) {
-          full_path_arima <- paste0("ensemble_model/",version,"/",file)
+          full_path_arima <- paste0(model_path, "/",version,"/",file)
         }
       }
       fit_arima <- readRDS(full_path_arima)

@@ -55,106 +55,23 @@ german_holidays <- german_holidays |>
 # Load and cleanup power-consum, filling gaps and droping duplicates, keeping first value. Creating features. 
 
 ```{r, echo=TRUE, message=FALSE}
-
-load_power_consum <- function(path) {
-  raw_power_consum <- read.csv2(file = path)
-  
-  names(raw_power_consum)[names(raw_power_consum) == "Datum.von"] <- "DateFrom"
-  names(raw_power_consum)[names(raw_power_consum) == "Gesamt..Netzlast...MWh..Berechnete.Auflösungen"] <- "PowerConsum"
-  
-  raw_power_consum <-  raw_power_consum |>
-    select(DateFrom, PowerConsum) |>
-    mutate(PowerConsum = as.numeric(gsub(",", ".", gsub("\\.", "", PowerConsum))),
-           DateFrom = dmy_hm(DateFrom))
-  
-  cleaned_power_consum <- raw_power_consum |>
-    distinct(DateFrom, .keep_all = TRUE) |>
-    mutate(DateIndex = DateFrom) |>
-    as_tsibble(index = DateIndex) |>
-    select(DateFrom, PowerConsum) |>
-    fill_gaps() |>
-    fill(PowerConsum, .direction = "downup") |>
-    mutate(
-      Weekday = wday(DateIndex, label = TRUE),  
-      Date = as.Date(DateIndex),
-      Year = as.factor(year(DateIndex)),
-      Week = as.factor(week(DateIndex)),
-      Hour = as.factor(hour(DateIndex)),
-      Month = as.factor(month(DateIndex)),
-    ) |>
-    left_join(german_holidays, by = c("Date" = "date")) |>
-    mutate(
-      WorkDay = ifelse(!(Date %in% german_holidays$date | Weekday %in% c("Sa", "So")), 1, 0),
-      Mo = Weekday == "Mo",
-      Di = Weekday == "Di",  
-      Mi = Weekday == "Mi",  
-      Do = Weekday == "Do",  
-      Fr = Weekday == "Fr",  
-      Sa = Weekday == "Sa",  
-      So = Weekday == "So",
-      Holiday = ifelse(Date %in% german_holidays$date, 1, 0),
-      WorkdayHolidayWeekend = paste0(ifelse(Holiday, "Feiertag", "Kein Feiertag"), ifelse(Weekday %in% c("Sa", "So"), "\nWochenende","\nKein Wochenende")),
-      HolidayAndWorkDay = ifelse((Holiday & !(Weekday %in% c("Sa", "So"))), 1, 0),
-      LastDayWasNotWorkDay = !lag(WorkDay, n=24),
-      LastDayWasNotWorkDayAndNowWorkDay = (LastDayWasNotWorkDay & WorkDay),
-      NextDayIsNotWorkDayAndNowWorkDay= (WorkDay & !lead(WorkDay, n=24)),
-      LastDayWasHolodiayAndNotWeekend = ifelse((lag(Holiday, n=24) & (!Sa | !So)), 1, 0),
-      NextDayIsHolidayAndNotWeekend = ifelse((lead(Holiday, n=24) & (!lead(Sa, n=24) | !lead(So, n=24))),1,0),
-      HolidayName = ifelse(is.na(localName), "Regulärer Tag", localName),
-      EndOfTheYear = ifelse(Week == "52"| Week == "53", 1,0),
-      FirstWeekOfTheYear = ifelse(Week == "1", 1,0),
-      HolidayExtended = lag(Holiday, 6, default=0) + Holiday,
-      HolidayExtended = ifelse(HolidayExtended == 2, 1, HolidayExtended),
-      HolidaySmoothed = HolidayExtended + sin(2 * pi * (as.numeric(Hour)+1) / 24)
-    )
-  
-  raw_power_consum <- raw_power_consum |>
-    arrange(DateFrom) |>
-    mutate(
-      MissingValue = difftime(DateFrom, lag(DateFrom, default = first(DateFrom)), units = "hours") == 2,
-      DuplicatedDate = duplicated(DateFrom),
-      Year = year(DateFrom)
-    )
-
-  plot_raw_data(
-    df = raw_power_consum,
-    x = "DateFrom",
-    y = "PowerConsum",
-    color = "DuplicatedDate",
-    missing_value = "MissingValue",
-    file_name = "plots\\raw_power_consum.png"
-  )
-  
-  return(list(raw_power_consum = raw_power_consum, cleaned_power_consum = cleaned_power_consum))
-}
-
+# Load Smard Predictions
 power_consum_smard_prediction_loaded <- load_power_consum(path=power_consum_smard_prediction_path)
-raw_smard_pred <- power_consum_smard_prediction_loaded$raw_power_consum
-cleaned_smard_pred <- power_consum_smard_prediction_loaded$cleaned_power_consum
+raw_smard_pred <- power_consum_smard_prediction_loaded$raw_data
+cleaned_smard_pred <- power_consum_smard_prediction_loaded$cleaned_data
 
 cleaned_smard_pred <- cleaned_smard_pred |>
   mutate(.model = "SMARD")
 names(cleaned_smard_pred)[names(cleaned_smard_pred) == "PowerConsum"] <- ".mean"
 
+# Load PowerConsum Data
 power_consum_loaded <- load_power_consum(path=power_consum_path)
-raw_power_consum <- power_consum_loaded$raw_power_consum
-cleaned_power_consum <- power_consum_loaded$cleaned_power_consum
-
-p <- cleaned_power_consum |>
-    gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 48)
-
-ggsave(
-  "plots/power_consum_acf_pacf.png",
-  plot = p,
-  width = 5.5,
-  height = 3.7,
-  dpi = 600
-)
+raw_power_consum <- power_consum_loaded$raw_data
+cleaned_power_consum <- power_consum_loaded$cleaned_data
 
 rm(power_consum_loaded)
 rm(power_consum_smard_prediction_loaded)
 rm(power_consum_path)
-rm(german_holidays)
 rm(power_consum_smard_prediction_path)
 rm(power_generation_path)
 
@@ -174,80 +91,11 @@ cleaned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum
 
 cleaned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) min(x[1:(24*2-25)]), align = "right", fill = NA) 
 
+# Check Correlation
 cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
 
 ```
 
-# Plot Avrg. Power-Consum of last 7 days.
-
-```{r, echo=TRUE, message=FALSE}
-
-p <- ggplot(cleaned_power_consum |> mutate(WorkDay = as.factor(WorkDay)), 
-            aes(x=MinLastOneDay, y=PowerConsum, color=WorkDay)) +
-  geom_point(alpha=0.5, size=0.2) +
-  scale_color_manual(
-      name = " ",
-      values =  c("1" = "#2E9FDF", "0" = "#FC4E07"),
-      labels = c(
-        "1" = "Werktag",
-        "0" = "Wochenende oder Feiertag"
-      )) +
-  labs(x = "Durchschnittlicher Stromverbrauch der letzten 7 Tage [MW]", y = "Stromverbrauch [MW]") +
-  theme(legend.position = "bottom",
-          panel.background = element_rect(fill = "#EBEBEB"),
-          panel.grid.major = element_line(color = "white"),
-          panel.grid.minor = element_line(color = "white"),
-        strip.text = element_text(size = 10)) +
-  guides(color = guide_legend(override.aes = list(lwd = 3, size = 3)))
-  
-ggsave(
-  "plots/mean_min_one_day.png",
-  plot = p,
-  width = 5.5,
-  height = 3.7,
-  dpi = 600
-)
-p
-  
-
-cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
-
-```
-
-# Plot weekly data
-
-```{r, echo=TRUE, message=FALSE}
-
-p <- ggplot(cleaned_power_consum |> mutate(week_color = ifelse(Week == "1" | Week == "52" | Week == "53","Anfang und Ende des Jahres", "Reguläre Zeit")), 
-            aes(x = Week, y = PowerConsum, color=week_color)) +
-  geom_boxplot() +
-  theme(
-    legend.position = "none", 
-    strip.text = element_text(size = 12) 
-  ) +
-  scale_color_manual(
-      name = " ",
-      values =  c("Reguläre Zeit" = "darkgrey", "Anfang und Ende des Jahres" = "#FC4E07")) +
-  labs(
-    x = "Woche",
-    y = "Stromverbrauch [MW]"
-  )+
-  scale_x_discrete(breaks = levels(cleaned_power_consum$Week)[seq(1, length(levels(cleaned_power_consum$Week)), by = 5)]) +
-  # theme_minimal() +
-  theme(legend.position = "bottom",
-          panel.background = element_rect(fill = "#EBEBEB"),
-          panel.grid.major = element_line(color = "white"),
-          panel.grid.minor = element_line(color = "white"),
-        strip.text = element_text(size = 10)) +
-  guides(color = guide_legend(override.aes = list(lwd = 3, size = 3)))
-
-ggsave("plots/week_boxplot.png",   plot = p,
-  width = 5.5,
-  height = 3.7,
-  dpi = 600)
-
-p
-```
 
 # Create different Plot for analysis
 
@@ -278,7 +126,6 @@ week_colors <- c(
   "So" = palette()[2]
 )
 
-
 working_colors <- c("1" = "#2E9FDF", "0" = "#FC4E07")
 
 whw_colors <- c(
@@ -286,6 +133,54 @@ whw_colors <- c(
   "Kein Feiertag\nKein Wochenende" = "red",
   "Kein Feiertag\nWochenende" = "orange",
   "Feiertag\nWochenende" = "blue"
+)
+
+p <- cleaned_power_consum |>
+    gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 100)
+
+ggsave(
+  "plots/power_consum_acf_pacf.png",
+  plot = p,
+  width = 5.5,
+  height = 3.7,
+  dpi = 600
+)
+
+plot_calculated_features(
+  cleaned_power_consum = cleaned_power_consum,
+  file_name = "plots/MinLastOneDay.png", 
+  x = "MinLastOneDay", 
+  y = "PowerConsum", 
+  x_label = "Minimaler Stromverbrauch vom letzten Tag [MW]",
+  y_label = "Stromverbrauch [MW]"
+)
+
+plot_calculated_features(
+  cleaned_power_consum = cleaned_power_consum,
+  file_name = "plots/MaxLastOneDay.png", 
+  x = "MaxLastOneDay", 
+  y = "PowerConsum", 
+  x_label = "Maximaler Stromverbrauch vom letzten Tag [MW]",
+  y_label = "Stromverbrauch [MW]"
+)
+
+plot_calculated_features(
+  cleaned_power_consum = cleaned_power_consum,
+  file_name = "plots/MeanLastWeek.png", 
+  x = "MeanLastWeek", 
+  y = "PowerConsum", 
+  x_label = "Durchschnittlicher Stromverbrauch der letzten 7 Tage [MW]",
+  y_label = "Stromverbrauch [MW]"
+)
+
+
+plot_calculated_features(
+  cleaned_power_consum = cleaned_power_consum,
+  file_name = "plots/MeanLastTwoDays.png", 
+  x = "MeanLastTwoDays", 
+  y = "PowerConsum", 
+  x_label = "Durchschnittlicher Stromverbrauch der letzten 2 Tage [MW]",
+  y_label = "Stromverbrauch [MW]"
 )
 
 plot_histogram_by_group(
@@ -418,7 +313,7 @@ plot_year_month_week_day(
   from_year=2015,
   to_year=2024,
   from_week=0,
-  to_week=52,
+  to_week=53,
   year_for_week=2018,
   from_day=1,
   to_day=30,
@@ -433,19 +328,11 @@ plot_year_month_week_day(
 
 
 ```
-# Train-Test dataset also Transformation
-
-```{r, echo=TRUE, message=FALSE}
-
-train_power_consum <- cleaned_power_consum |>
-  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
-```
-
 # STL decomposition
 
 ```{r, echo=TRUE, message=FALSE}
 
-cleaned_power_consum |>
+p <-  cleaned_power_consum |>
   model(STL(
     PowerConsum ~ season(period = 24 * 365.25)
     + season(period = 24 * 7)
@@ -455,21 +342,24 @@ cleaned_power_consum |>
   components() |>
   autoplot() + labs(x = "Observation")
 
-lambda <- cleaned_power_consum |>
-  features(PowerConsum, features = guerrero) |>
-  pull(lambda_guerrero)
-train_power_consum_transformed <- cleaned_power_consum |>
-  mutate(PowerConsum = box_cox(PowerConsum, lambda))
+ggsave("plots/stl_decomposition.png",   
+       plot = p,
+       width = 5.5,
+       height = 8,
+       dpi = 600)
 
-train_power_consum_transformed |>
-  gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 100)
+p
 
+rm(p)
 ```
 
 # Different Models
 
 ```{r, echo=TRUE, message=FALSE}
 load_all()
+
+train_power_consum <- cleaned_power_consum |>
+  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
 
 generate_models(model_name = "model/mean_naive_drift",
                 train_power_consum = train_power_consum)
@@ -586,7 +476,8 @@ ensembled_fc <- load_ensembled_models(
   year_to_forecast = 2024,
   starting_month = 1,
   real_data = cleaned_power_consum,
-  smard_fc = cleaned_smard_pred
+  smard_fc = cleaned_smard_pred,
+  model_path = "ensemble_model"
 )
 all_forecasts_ensembled <- ensembled_fc$all_forecasts
 raw_fc_ensembled <- ensembled_fc$raw_forecasts
@@ -605,14 +496,16 @@ raw_fc <- fc$raw_forecasts
 
 
 metric_results <- calculate_metrics(fc_data = all_forecasts, fc_data_ensembled=all_forecasts_ensembled)
+rm(fc)
+rm(ensembled_fc)
 ```
 # Create plots of best models
 
 ```{r, echo=TRUE, message=FALSE}
 load_all()
-rm(fc)
 
-name_of_best_model <- plot_forecast(
+# Plot best Model for single Models
+name_of_best_model_for_single_model <- plot_forecast(
   all_forecasts = all_forecasts,
   metric_results = metric_results,
   cleaned_power_consum = cleaned_power_consum,
@@ -621,105 +514,32 @@ name_of_best_model <- plot_forecast(
   days_to_plot = 40
 )
 
-name_of_best_model <- plot_forecast_ensembled(
+# Plot best Model for ensembled Models
+name_of_best_model_ensembled <- plot_forecast_ensembled(
   all_forecasts = all_forecasts_ensembled,
   metric_results = metric_results,
   cleaned_power_consum = cleaned_power_consum,
   month_to_plot = 1,
-  days_to_plot = 15
+  days_to_plot = 40
 )
-```
 
-# Analyze Residuals
-
-```{r, echo=TRUE, message=FALSE}
-load_all()
-all_forecasts_ensembled_v_filter <- all_forecasts_ensembled |>
-  filter(.model == "version_5" | .model == "SMARD") |>
-  mutate(.res = PowerConsum - .mean)
-
-best_forecast <- all_forecasts_ensembled_v_filter |>
-  filter(.model == "version_5") 
-ggplot(best_forecast, aes(x=DateIndex, y=.res)) + 
-  geom_line()
-
-ggplot(best_forecast, aes(x=.res)) + 
-  geom_histogram()
-
-best_forecast |>
-  as_tsibble(index=DateIndex) |>
-  gg_tsdisplay(.res, plot_type = "partial", lag = 100)
-
-smard_fc <- all_forecasts_ensembled_v_filter |>
-  filter(.model == "SMARD")
-
-ggplot(smard_fc, aes(x=DateIndex, y=.res)) + 
-  geom_line()
-
-ggplot(smard_fc, aes(x=.res)) + 
-  geom_histogram()
-
-smard_fc |>
-  as_tsibble(index=DateIndex) |>
-  gg_tsdisplay(.res, plot_type = "partial", lag = 100)
-
-```
-
-# LHM + DHM
-
-```{r, echo=TRUE, message=FALSE}
-load_all()
-train_power_consum_converted <- train_power_consum |>
-  mutate(HolidayExtended = lag(Holiday, 6, default=0) + Holiday,
-         HolidayExtended = ifelse(HolidayExtended == 2, 1, HolidayExtended),
-         HolidaySmoothed = Holiday + sin(2 * pi * (as.numeric(Hour)+1) / 24))
- 
-holiday_effect_model <- lm(
-  PowerConsum ~
-  HolidaySmoothed,
-  data = train_power_consum_converted
-)
-test_data <- load_test_data(model_name="version_5", 
-                            transformed_power_consum = cleaned_power_consum)
-
-filtered_test_data <- test_data |>
-  filter(year(DateIndex) == 2024) |> 
-  filter(month(DateIndex) >= 1) |> 
-  filter(month(DateIndex) <= 6) |>
-  filter(day(DateIndex) < 40) |>
-  mutate(HolidayExtended = lag(Holiday, 6, default=0) + Holiday,
-         HolidayExtended = ifelse(HolidayExtended == 2, 1, HolidayExtended),
-         HolidaySmoothed = HolidayExtended + 0.5*sin(2 * pi * (as.numeric(Hour)+1) / 24)) |>
-  as_tsibble()
-
-raw_fc_holiday <- predict(holiday_effect_model, newdata = filtered_test_data)
-
-fc_v0_linear <- raw_fc_ensembled[["ensemble_model/version_5/holiday_effect_2021_2023.rds"]]
-fc_v0_arima <- raw_fc_ensembled[["ensemble_model/version_5/arima_2021_2023.rds"]]
-fc_v0_arima$linear_fc <- raw_fc_holiday
-fc_v0_arima$linear_fc_before <- fc_v0_linear
-
-
-fc_v0_arima <- fc_v0_arima |>
-  filter(month(DateIndex) == 1)
-
-
-p <- ggplot(fc_v0_arima, aes(x=DateIndex)) +
-  geom_line(aes(y = PowerConsum, color = "PowerConsum")) +
-  geom_line(aes(y = linear_fc, color = "Linear FC")) +
-  geom_line(aes(y = linear_fc_before - PowerConsum, color = "Linear FCBF")) +
-  scale_color_manual(
-    name = "Legend",
-    values = c(
-      "PowerConsum" = "red",
-      "Linear FC" = "darkgreen",
-      "Linear FC" = "blue"
-    )
+# Residuals Compared with SMARD
+plot_compare_with_smard(
+  all_forecasts = all_forecasts_ensembled, 
+  name_of_best_model = name_of_best_model_ensembled
   )
 
-p
 
-fit_arima <- readRDS("ensemble_model/version_5/arima_2021_2023.rds")
+# LHM DHM representation
+plot_representation_of_lhm_dhm_components(path_dhm = "ensemble_model/version_5/arima_2021_2023.rds",
+                                          path_lhm = "ensemble_model/version_5/holiday_effect_2021_2023.rds",
+                                          from_month = 1,
+                                          to_month = 1,
+                                          raw_fc_ensembled = raw_fc_ensembled)
+
+
 ```
+
+
 
 

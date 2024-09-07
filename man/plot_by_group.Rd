@@ -35,3 +35,33 @@ plot_by_group(
 \description{
 This function will create plots for a selected group from a timeseries.
 }
+\examples{
+\dontrun{
+
+# Load PowerConsum Data
+power_consum_loaded <- load_power_consum(path=power_consum_path)
+raw_power_consum <- power_consum_loaded$raw_data
+cleaned_power_consum <- power_consum_loaded$cleaned_data
+week_colors <- c(
+"Mo" = palette()[1],
+"Di" = palette()[1],
+"Mi" = palette()[1],
+"Do" = palette()[1],
+"Fr" = palette()[1],
+"Sa" = palette()[2],
+"So" = palette()[2]
+)
+
+plot_by_group(
+  cleaned_power_consum,
+  group_name = "Weekday",
+  file_name = "plots\\\\weekday_boxplot.png",
+  colors = week_colors,
+  title = "Übersicht der einzelnen Wochentage",
+  y = "PowerConsum",
+  y_label="Stromverbrauch [MW]",
+  x_label="Jahre"
+)
+}
+
+}

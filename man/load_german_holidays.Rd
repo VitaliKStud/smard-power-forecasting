@@ -10,6 +10,8 @@ load_german_holidays(from_year, to_year, location)
 \item{from_year}{Integer. The start year for which to retrieve holidays.}
 
 \item{to_year}{Integer. The end year for which to retrieve holidays.}
+
+\item{location}{Char. Could be "/DE"}
 }
 \value{
 A vector of `Date` objects representing public holidays in Germany, 
@@ -18,15 +20,11 @@ filtered to include only globally recognized holidays.
 \description{
 This function retrieves public holidays in Germany for a specified range of years 
 using the Nager.Date API and returns a vector of unique dates that are recognized 
-as public holidays.
-}
-\note{
--
+as public holidays. Check \link{https://date.nager.at}
 }
 \examples{
 \dontrun{
 # Load holidays from 2015 to 2024
-german_holidays <- load_german_holidays(2015, 2024)
+german_holidays <- load_german_holidays(from_year = 2015, to_year = 2024, location = "/DE")
 }
-
 }

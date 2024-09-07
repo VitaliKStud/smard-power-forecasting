@@ -2,10 +2,11 @@
 #'
 #' This function retrieves public holidays in Germany for a specified range of years 
 #' using the Nager.Date API and returns a vector of unique dates that are recognized 
-#' as public holidays.
+#' as public holidays. Check \link{https://date.nager.at}
 #'
 #' @param from_year Integer. The start year for which to retrieve holidays.
 #' @param to_year Integer. The end year for which to retrieve holidays.
+#' @param location Char. Could be "/DE"  
 #'
 #' @return A vector of `Date` objects representing public holidays in Germany, 
 #' filtered to include only globally recognized holidays.
@@ -13,14 +14,9 @@
 #' @examples
 #' \dontrun{
 #' # Load holidays from 2015 to 2024
-#' german_holidays <- load_german_holidays(2015, 2024)
+#' german_holidays <- load_german_holidays(from_year = 2015, to_year = 2024, location = "/DE")
 #' }
-#'
-#' @note -
-#' 
-#' @importFrom httr GET content
-#' @importFrom dplyr bind_rows mutate group_by slice ungroup filter
-#' @export
+
 
 load_german_holidays <- function(from_year, to_year, location) {
   all_holidays <- list()

@@ -27,18 +27,23 @@ None
 \description{
 This function will create plots for a selected column.
 }
-\note{
--
-}
 \examples{
 \dontrun{
-plot_by_column(df=filtered_power_consum,
-               x="Hour",
-               y="GridLoad",
-               x_label="Hour",
-               y_label="Grid Load",
-               file_name="hour.png")
-}
 
+# Load PowerConsum Data
+power_consum_loaded <- load_power_consum(path=power_consum_path)
+raw_power_consum <- power_consum_loaded$raw_data
+cleaned_power_consum <- power_consum_loaded$cleaned_data
+
+plot_by_column(
+  df = cleaned_power_consum,
+  x = "Hour",
+  y = "PowerConsum",
+  x_label = "Stunden",
+  y_label = "Stromverbrauch [MW]",
+  file_name = "plots\\\\hour_boxplot.png",
+  title = "Übersicht der einzelnen Stunden"
+)
+}
 
 }

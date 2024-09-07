@@ -6,8 +6,39 @@
 #' Use \link{load_all_model_results} to get data from the .rds models.
 #' @param fc_data_ensembled class: "tbl_df" "tbl" "data.frame" with columns (.mean, PowerConsum, DateIndex, .model).
 #' Use \link{load_ensembled_models} to get data from ensembled .rds models.
-
-
+#' 
+#' @return Metrics for all models
+#' 
+#' @examples
+#' \dontrun{
+#' ensembled_fc <- load_ensembled_models(
+#' days_to_forecast = 40,
+#' months_to_forecast = 6,
+#' year_to_forecast = 2024,
+#' starting_month = 1,
+#' real_data = cleaned_power_consum,
+#' smard_fc = cleaned_smard_pred,
+#' model_path = "ensemble_model"
+#' )
+#' all_forecasts_ensembled <- ensembled_fc$all_forecasts
+#' raw_fc_ensembled <- ensembled_fc$raw_forecasts
+#' 
+#' fc <- load_all_model_results(
+#'   days_to_forecast = 40,
+#'   months_to_forecast = 6,
+#'   year_to_forecast = 2024,
+#'   starting_month = 1,
+#'   smard_fc = cleaned_smard_pred,
+#'   real_data = cleaned_power_consum
+#' )
+#' 
+#' all_forecasts <- fc$combined_forecasts
+#' raw_fc <- fc$raw_forecasts
+#' 
+#' 
+#' metric_results <- calculate_metrics(fc_data = all_forecasts, fc_data_ensembled=all_forecasts_ensembled)
+#' }
+#' 
 
 
 calculate_metrics <- function(fc_data, fc_data_ensembled){

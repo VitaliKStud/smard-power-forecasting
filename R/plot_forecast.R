@@ -1,3 +1,70 @@
+#' Plot best Model for single Models
+#'
+#' @param all_forecasts Should be all Forecasted values for all Models.
+#' @param metric_results Alle the metrics for all Models (Best Model will be extracted here)
+#' @param cleaned_power_consum Cleaned Power Consum Data
+#' @param raw_fc Raw Forecast Data
+#' @param month_to_plot Until which month the best Forecast should be plotted?
+#' @param days_to_plot How many days you want to plot? 
+#' 
+#' @return name_of_best_model Could be for example "version_0"
+#' 
+#' @examples
+#' \dontrun{
+# Load Smard Predictions
+#' power_consum_smard_prediction_loaded <- load_power_consum(path=power_consum_smard_prediction_path)
+#' raw_smard_pred <- power_consum_smard_prediction_loaded$raw_data
+#' cleaned_smard_pred <- power_consum_smard_prediction_loaded$cleaned_data
+#' 
+#' cleaned_smard_pred <- cleaned_smard_pred |>
+#'   mutate(.model = "SMARD")
+#' names(cleaned_smard_pred)[names(cleaned_smard_pred) == "PowerConsum"] <- ".mean"
+#' 
+#' # Load PowerConsum Data
+#' power_consum_loaded <- load_power_consum(path=power_consum_path)
+#' raw_power_consum <- power_consum_loaded$raw_data
+#' cleaned_power_consum <- power_consum_loaded$cleaned_data
+#' 
+#' 
+#' ensembled_fc <- load_ensembled_models(
+#'   days_to_forecast = 40,
+#'   months_to_forecast = 6,
+#'   year_to_forecast = 2024,
+#'   starting_month = 1,
+#'   real_data = cleaned_power_consum,
+#'   smard_fc = cleaned_smard_pred,
+#'   model_path = "ensemble_model"
+#' )
+#' all_forecasts_ensembled <- ensembled_fc$all_forecasts
+#' raw_fc_ensembled <- ensembled_fc$raw_forecasts
+#' 
+#' fc <- load_all_model_results(
+#'   days_to_forecast = 40,
+#'   months_to_forecast = 6,
+#'   year_to_forecast = 2024,
+#'   starting_month = 1,
+#'   smard_fc = cleaned_smard_pred,
+#'   real_data = cleaned_power_consum
+#' )
+#' 
+#' all_forecasts <- fc$combined_forecasts
+#' raw_fc <- fc$raw_forecasts
+#' 
+#' 
+#' metric_results <- calculate_metrics(fc_data = all_forecasts, fc_data_ensembled=all_forecasts_ensembled)
+#' 
+#' # Plot best Model for single Models
+#' name_of_best_model_for_single_model <- plot_forecast(
+#'   all_forecasts = all_forecasts,
+#'   metric_results = metric_results,
+#'   cleaned_power_consum = cleaned_power_consum,
+#'   raw_fc = raw_fc,
+#'   month_to_plot = 1,
+#'   days_to_plot = 40
+#' )
+#' }
+#' 
+#' 
 plot_forecast <- function(all_forecasts, metric_results, cleaned_power_consum, raw_fc,
                           month_to_plot, days_to_plot) {
   

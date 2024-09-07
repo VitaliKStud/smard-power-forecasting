@@ -10,22 +10,48 @@ load_ensembled_models(
   year_to_forecast,
   starting_month,
   real_data,
-  smard_fc
+  smard_fc,
+  model_path
 )
 }
 \arguments{
-\item{days_to_forecast}{i.r. can be more then 32 will forecast max. of this days}
+\item{days_to_forecast}{Number of Days you want to include in your Forecast. If you need to forecast more then
+1 month you could use days_to_forecast > 31.}
 
-\item{months_to_forecast}{Will Forecast the number of this months}
+\item{months_to_forecast}{Number of months you want to include in your Forecast.}
 
-\item{year_to_forecast}{Will Forecast this year}
+\item{year_to_forecast}{The year you want to forecast.}
 
-\item{starting_month}{Should be 1 (January) if your Fit ends on 31.12}
+\item{starting_month}{Depend on where you fit ends, you need a "starting_month" Could be 1 for January.}
 
-\item{real_data}{Check \link{example/forecast.Rmd} should be cleaned_power_consum}
+\item{real_data}{Cleaned PowerConsum Data}
 
-\item{smard_fc}{Data of smard_fc check \link{example/forecast.Rmd} should be cleaned_smard_pred}
+\item{smard_fc}{SMARD Forecast Data}
+
+\item{model_path}{Should be the folder with "Versions"
+
+#' Use \link{load_power_consum()} here to get "smard_fc" and "real_data"}
+}
+\value{
+list(all_forecasts = combined_forecasts, raw_forecasts = raw_forecasts). Will return a list of combined Forecasts
+and Raw Forecasts (nested).
 }
 \description{
 This function will load all LHM and DHM models and combine them together, make forecasts.
+}
+\examples{
+
+\dontrun{
+ensembled_fc <- load_ensembled_models(
+  days_to_forecast = 40,
+  months_to_forecast = 6,
+  year_to_forecast = 2024,
+  starting_month = 1,
+  real_data = cleaned_power_consum,
+  smard_fc = cleaned_smard_pred,
+  model_path = "ensemble_model"
+)
+all_forecasts_ensembled <- ensembled_fc$all_forecasts
+raw_fc_ensembled <- ensembled_fc$raw_forecasts
+}
 }
