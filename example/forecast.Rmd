@@ -28,6 +28,7 @@ library(scales)
 library(fable.prophet)
 library(mgcv)
 library(MEFM)
+library(TTR)
 load_all()
 # devtools::document()
 ```
@@ -106,7 +107,12 @@ load_power_consum <- function(path) {
       NextDayIsNotWorkDayAndNowWorkDay= (WorkDay & !lead(WorkDay, n=24)),
       LastDayWasHolodiayAndNotWeekend = ifelse((lag(Holiday, n=24) & (!Sa | !So)), 1, 0),
       NextDayIsHolidayAndNotWeekend = ifelse((lead(Holiday, n=24) & (!lead(Sa, n=24) | !lead(So, n=24))),1,0),
-      HolidayName = ifelse(is.na(localName), "Regulärer Tag", localName)
+      HolidayName = ifelse(is.na(localName), "Regulärer Tag", localName),
+      EndOfTheYear = ifelse(Week == "52"| Week == "53", 1,0),
+      FirstWeekOfTheYear = ifelse(Week == "1", 1,0),
+      HolidayExtended = lag(Holiday, 6, default=0) + Holiday,
+      HolidayExtended = ifelse(HolidayExtended == 2, 1, HolidayExtended),
+      HolidaySmoothed = HolidayExtended + sin(2 * pi * (as.numeric(Hour)+1) / 24)
     )
   
   cleaned_power_consum |>
@@ -167,9 +173,76 @@ cleaned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum
 
 cleaned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) min(x[1:(24*2-25)]), align = "right", fill = NA) 
 
+cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+p <- ggplot(cleaned_power_consum |> mutate(WorkDay = as.factor(WorkDay)), 
+            aes(x=MeanLastWeek, y=PowerConsum, color=WorkDay)) +
+  geom_point(alpha=0.5, size=0.2) +
+  scale_color_manual(
+      name = " ",
+      values =  c("1" = "#2E9FDF", "0" = "#FC4E07"),
+      labels = c(
+        "1" = "Werktag",
+        "0" = "Wochenende oder Feiertag"
+      )) +
+  labs(x = "Durchschnittlicher Stromverbrauch der letzten 7 Tage [MW]", y = "Stromverbrauch [MW]") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+          panel.background = element_rect(fill = "#EBEBEB"),
+          panel.grid.major = element_line(color = "white"),
+          panel.grid.minor = element_line(color = "white"),
+        strip.text = element_text(size = 10)) +
+  guides(color = guide_legend(override.aes = list(lwd = 3, size = 3)))
+  
+ggsave(
+  "plots/mean_last_week.png",
+  plot = p,
+  width = 5.5,
+  height = 3.7,
+  dpi = 600
+)
+p
+  
 
 cor <- cor(cleaned_power_consum[sapply(cleaned_power_consum, is.numeric)], method = c("pearson", "kendall", "spearman"), use = "complete.obs")
 
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+p <- ggplot(cleaned_power_consum |> mutate(week_color = ifelse(Week == "1" | Week == "52" | Week == "53","Anfang und Ende des Jahres", "Reguläre Zeit")), 
+            aes(x = Week, y = PowerConsum, color=week_color)) +
+  geom_boxplot() +
+  theme(
+    legend.position = "none", 
+    strip.text = element_text(size = 12) 
+  ) +
+  scale_color_manual(
+      name = " ",
+      values =  c("Reguläre Zeit" = "darkgrey", "Anfang und Ende des Jahres" = "#FC4E07")) +
+  labs(
+    x = "Woche",
+    y = "Stromverbrauch [MW]"
+  )+
+  scale_x_discrete(breaks = levels(cleaned_power_consum$Week)[seq(1, length(levels(cleaned_power_consum$Week)), by = 5)]) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+          panel.background = element_rect(fill = "#EBEBEB"),
+          panel.grid.major = element_line(color = "white"),
+          panel.grid.minor = element_line(color = "white"),
+        strip.text = element_text(size = 10)) +
+  guides(color = guide_legend(override.aes = list(lwd = 3, size = 3)))
+
+ggsave("plots/week_boxplot.png",   plot = p,
+  width = 5.5,
+  height = 3.7,
+  dpi = 600)
+
+p
 ```
 
 
@@ -363,31 +436,31 @@ plot_year_month_week_day(
 ```{r, echo=TRUE, message=FALSE}
 
 train_power_consum <- cleaned_power_consum |>
-  filter(year(DateIndex) > 2020 & (year(DateIndex) < 2024))
+  filter(year(DateIndex) > 2018 & (year(DateIndex) < 2022))
 ```
 
 # Fit
 
 ```{r, echo=TRUE, message=FALSE}
 
-train_power_consum |>
+cleaned_power_consum |>
   model(STL(
-    PowerConsum ~ season(period = 24 * 365)
+    PowerConsum ~ season(period = 24 * 365.25)
     + season(period = 24 * 7)
     + season(period = 24),
-    robust = TRUE
+    robust = TRUE 
   )) |>
   components() |>
   autoplot() + labs(x = "Observation")
 
-lambda <- train_power_consum |>
+lambda <- cleaned_power_consum |>
   features(PowerConsum, features = guerrero) |>
   pull(lambda_guerrero)
-train_power_consum_transformed <- train_power_consum |>
+train_power_consum_transformed <- cleaned_power_consum |>
   mutate(PowerConsum = box_cox(PowerConsum, lambda))
 
 train_power_consum_transformed |>
-  gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 400)
+  gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 100)
 
 ```
 
@@ -608,19 +681,9 @@ fit <- train_power_consum |>
 saveRDS(fit, file = "model/prophet_0_2021_2023.rds")    
 ```
 
-```{r, echo=TRUE, message=FALSE}
-
-train_power_consum_a  <- train_power_consum |>
-  mutate(HolidayXREG = Holiday * MeanLastTwoDays)
-
-xreg_holiday <- list(train_power_consum_a$HolidayXREG) 
-```
-
 
 ```{r, echo=TRUE, message=FALSE}
 
-# TODO HERE 
-# Finde richtige holiday handling
 fit <- train_power_consum |>
   model(
     ARIMA = ARIMA(PowerConsum ~
@@ -636,18 +699,826 @@ fit <- train_power_consum |>
           + NextDayIsHolidayAndNotWeekend
           + fourier(period = 24, K = 8)
           + fourier(period = 24*7, K = 5)
-          + fourier(period = 24*365.25, K = 3)
-          + xreg(fixed = xreg_holiday)
+          + fourier(period = 24*365.25, K = 3),
+          stepwise=FALSE,
+          greedy=FALSE,
+          approx=FALSE
           )
   )
+
 
 saveRDS(fit, file = "model/arima_6_2021_2023.rds")
 ```
 
+```{r, echo=TRUE, message=FALSE}
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + WorkDay 
+          + fourier(period = 24, K = 4)
+          + fourier(period = 24*7, K = 3)
+          + fourier(period = 24*365.25, K = 2)
+          )
+  )
+saveRDS(fit, file = "model/arima_7_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + WorkDay 
+          + Holiday
+          + fourier(period = 24, K = 8)
+          + fourier(period = 24*7, K = 5)
+          # + fourier(period = 24*365.25, K = 3)
+          )
+  )
+saveRDS(fit, file = "model/arima_8_2021_2023.rds")
+```
+
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_9_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 4)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_10_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 2)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_11_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 8)
+          + fourier(period = "week", K = 3)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_12_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 8)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 1)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_13_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_14_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 9)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_15_2021_2023.rds")
+```
+
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 5)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_16_2021_2023.rds")
+```
+
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 10)
+          + fourier(period = "week", K = 5)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_17_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(PowerConsum ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + Holiday
+          + MeanLastWeek
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + LastDayWasHolodiayAndNotWeekend
+          + NextDayIsHolidayAndNotWeekend
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "model/arima_18_2021_2023.rds")
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+fit <- train_power_consum |>
+  model(
+    PROPHET = prophet(
+      PowerConsum ~ 
+        MeanLastWeek
+      + MeanLastTwoDays
+      + MaxLastOneDay
+      + MinLastOneDay
+      + WorkDay 
+      + Holiday
+      + LastDayWasHolodiayAndNotWeekend
+      + NextDayIsHolidayAndNotWeekend
+      + season(period = "day", order = 24) 
+      + season(period = "week", order = 5) 
+      + season(period = "year", order = 3))
+    )
+
+saveRDS(fit, file = "model/prophet_1_2021_2023.rds")    
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  Holiday,
+  data = train_power_consum
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_0/holiday_effect_2021_2023.rds") 
+
+train_power_consum$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays 
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_0/arima_2021_2023.rds") 
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+# Combined Model LN with Holiday Effect and
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  WorkDay
+  + EndOfTheYear
+  + FirstWeekOfTheYear,
+  data = train_power_consum
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_1/holiday_effect_2021_2023.rds") 
+
+train_power_consum$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + WorkDay
+          + MeanLastWeek
+          + MeanLastTwoDays 
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_1/arima_2021_2023.rds") 
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+
+if (!dir.exists("ensemble_model/version_2")) {
+  dir.create("ensemble_model/version_2")
+}
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  WorkDay,
+  data = train_power_consum
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_2/holiday_effect_2021_2023.rds") 
+
+train_power_consum$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + MeanLastTwoDays 
+          + MaxLastOneDay
+          + MinLastOneDay
+          + EndOfTheYear
+          + FirstWeekOfTheYear
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_2/arima_2021_2023.rds") 
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_3")) {
+  dir.create("ensemble_model/version_3")
+}
+
+holiday_effect_model <- lm(PowerConsum ~
+                             MeanLastTwoDays
+                           + MaxLastOneDay
+                           + MeanLastWeek
+                           + MinLastOneDay,
+                           data = train_power_consum)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_3/holiday_effect_2021_2023.rds") 
+
+train_power_consum$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + Holiday
+          + WorkDay
+          + EndOfTheYear
+          + FirstWeekOfTheYear
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_3/arima_2021_2023.rds") 
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_4")) {
+  dir.create("ensemble_model/version_4")
+}
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  Holiday 
+  + WorkDay,
+  data = train_power_consum
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_4/holiday_effect_2021_2023.rds") 
+
+train_power_consum$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + EndOfTheYear 
+          + FirstWeekOfTheYear 
+          + MeanLastTwoDays 
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_4/arima_2021_2023.rds") 
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_5")) {
+  dir.create("ensemble_model/version_5")
+}
+
+
+train_power_consum_v5 <- train_power_consum |>
+  mutate(HolidaySmoothed = Holiday + sin(2 * pi * (as.numeric(Hour)+1) / 24))
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum_v5
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_5/holiday_effect_2021_2023.rds") 
+
+train_power_consum_v5$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum_v5 |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_5/arima_2021_2023.rds")
+
+rm(train_power_consum_v5)
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_6")) {
+  dir.create("ensemble_model/version_6")
+}
+
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_6/holiday_effect_2021_2023.rds") 
+
+train_power_consum$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_6/arima_2021_2023.rds")
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_7")) {
+  dir.create("ensemble_model/version_7")
+}
+
+train_power_consum_v7 <- train_power_consum |>
+  mutate(HolidaySmoothed = Holiday + 0.5*sin(2 * pi * (as.numeric(Hour)+1) / 24))
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum_v7
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_7/holiday_effect_2021_2023.rds") 
+
+train_power_consum_v7$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum_v7 |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_7/arima_2021_2023.rds")
+
+rm(train_power_consum_v7)
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_8")) {
+  dir.create("ensemble_model/version_8")
+}
+
+train_power_consum_v8 <- train_power_consum |>
+  mutate(HolidaySmoothed =  HolidayExtended + 0.5*sin(2 * pi * (as.numeric(Hour)+1) / 24))
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum_v8
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_8/holiday_effect_2021_2023.rds") 
+
+train_power_consum_v8$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum_v8 |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_8/arima_2021_2023.rds")
+
+rm(train_power_consum_v8)
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_9")) {
+  dir.create("ensemble_model/version_9")
+}
+
+train_power_consum_v9 <- train_power_consum |>
+  mutate(HolidaySmoothed =  Holiday + 0.25*sin(2 * pi * (as.numeric(Hour)+1) / 24))
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum_v9
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_9/holiday_effect_2021_2023.rds") 
+
+train_power_consum_v9$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum_v9 |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_9/arima_2021_2023.rds")
+
+rm(train_power_consum_v9)
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_10")) {
+  dir.create("ensemble_model/version_10")
+}
+
+
+train_power_consum_v10 <- train_power_consum |>
+  mutate(HolidaySmoothed = Holiday + sin(2 * pi * (as.numeric(Hour)+1) / 24))
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum_v10
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_10/holiday_effect_2020_2022.rds") 
+
+train_power_consum_v10$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum_v10 |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_10/arima_2020_2022.rds")
+
+rm(train_power_consum_v10)
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+
+if (!dir.exists("ensemble_model/version_11")) {
+  dir.create("ensemble_model/version_11")
+}
+
+
+train_power_consum_v10 <- train_power_consum |>
+  mutate(HolidaySmoothed = Holiday + sin(2 * pi * (as.numeric(Hour)+1) / 24))
+
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum_v10
+)
+
+saveRDS(holiday_effect_model, file = "ensemble_model/version_11/holiday_effect_2019_2021.rds") 
+
+train_power_consum_v10$Residuals <- residuals(holiday_effect_model)
+
+fit <- train_power_consum_v10 |>
+  model(
+    ARIMA = ARIMA(Residuals ~
+            PDQ(0,0,0)
+          + pdq(d=0)
+          + MeanLastWeek
+          + WorkDay
+          + EndOfTheYear # new
+          + FirstWeekOfTheYear # new
+          + MeanLastTwoDays
+          + MaxLastOneDay
+          + MinLastOneDay
+          + fourier(period = "day", K = 6)
+          + fourier(period = "week", K = 7)
+          + fourier(period = "year", K = 3)
+          )
+  )
+
+saveRDS(fit, file = "ensemble_model/version_11/arima_2019_2021.rds")
+
+rm(train_power_consum_v10)
+
+```
+
 # Load All Models and Metrics Evaluation
+
+
 
 ```{r, echo=TRUE, message=FALSE}
 load_all()
+
+ensembled_fc <- load_ensembled_models(
+  days_to_forecast = 40,
+  months_to_forecast = 6,
+  year_to_forecast = 2024,
+  starting_month = 1,
+  real_data = cleaned_power_consum,
+  smard_fc = cleaned_smard_pred
+)
+all_forecasts_ensembled <- ensembled_fc$all_forecasts
+raw_fc_ensembled <- ensembled_fc$raw_forecasts
+
 fc <- load_all_model_results(
   days_to_forecast = 40,
   months_to_forecast = 6,
@@ -659,9 +1530,13 @@ fc <- load_all_model_results(
 
 all_forecasts <- fc$combined_forecasts
 raw_fc <- fc$raw_forecasts
-all_fits <- fc$all_fits
+# all_fits <- fc$all_fits
+```
 
-metric_results <- calculate_metrics(fc_data = all_forecasts)
+
+```{r, echo=TRUE, message=FALSE}
+load_all()
+metric_results <- calculate_metrics(fc_data = all_forecasts, fc_data_ensembled=all_forecasts_ensembled)
 
 rm(fc)
 
@@ -674,13 +1549,101 @@ name_of_best_model <- plot_forecast(
   days_to_plot = 40
 )
 
-best_fit <- readRDS(paste0("model/", name_of_best_model))
-best_fit |>
-  gg_tsresiduals()
- 
-glance(best_fit)
-report(best_fit)
+name_of_best_model <- plot_forecast_ensembled(
+  all_forecasts = all_forecasts_ensembled,
+  metric_results = metric_results,
+  cleaned_power_consum = cleaned_power_consum,
+  month_to_plot = 1,
+  days_to_plot = 15
+)
+```
 
+```{r, echo=TRUE, message=FALSE}
+load_all()
+all_forecasts_ensembled_v_filter <- all_forecasts_ensembled |>
+  filter(.model == "version_5" | .model == "SMARD") |>
+  mutate(.res = PowerConsum - .mean)
+
+best_forecast <- all_forecasts_ensembled_v_filter |>
+  filter(.model == "version_5") 
+ggplot(best_forecast, aes(x=DateIndex, y=.res)) + 
+  geom_line()
+
+ggplot(best_forecast, aes(x=.res)) + 
+  geom_histogram()
+
+best_forecast |>
+  as_tsibble(index=DateIndex) |>
+  gg_tsdisplay(.res, plot_type = "partial", lag = 100)
+
+smard_fc <- all_forecasts_ensembled_v_filter |>
+  filter(.model == "SMARD")
+
+ggplot(smard_fc, aes(x=DateIndex, y=.res)) + 
+  geom_line()
+
+ggplot(smard_fc, aes(x=.res)) + 
+  geom_histogram()
+
+smard_fc |>
+  as_tsibble(index=DateIndex) |>
+  gg_tsdisplay(.res, plot_type = "partial", lag = 100)
+
+```
+
+```{r, echo=TRUE, message=FALSE}
+load_all()
+train_power_consum_converted <- train_power_consum |>
+  mutate(HolidayExtended = lag(Holiday, 6, default=0) + Holiday,
+         HolidayExtended = ifelse(HolidayExtended == 2, 1, HolidayExtended),
+         HolidaySmoothed = Holiday + sin(2 * pi * (as.numeric(Hour)+1) / 24))
+ 
+holiday_effect_model <- lm(
+  PowerConsum ~
+  HolidaySmoothed,
+  data = train_power_consum_converted
+)
+test_data <- load_test_data(model_name="version_5", 
+                            transformed_power_consum = cleaned_power_consum)
+
+filtered_test_data <- test_data |>
+  filter(year(DateIndex) == 2024) |> 
+  filter(month(DateIndex) >= 1) |> 
+  filter(month(DateIndex) <= 6) |>
+  filter(day(DateIndex) < 40) |>
+  mutate(HolidayExtended = lag(Holiday, 6, default=0) + Holiday,
+         HolidayExtended = ifelse(HolidayExtended == 2, 1, HolidayExtended),
+         HolidaySmoothed = HolidayExtended + 0.5*sin(2 * pi * (as.numeric(Hour)+1) / 24)) |>
+  as_tsibble()
+
+raw_fc_holiday <- predict(holiday_effect_model, newdata = filtered_test_data)
+
+fc_v0_linear <- raw_fc_ensembled[["ensemble_model/version_5/holiday_effect_2021_2023.rds"]]
+fc_v0_arima <- raw_fc_ensembled[["ensemble_model/version_5/arima_2021_2023.rds"]]
+fc_v0_arima$linear_fc <- raw_fc_holiday
+fc_v0_arima$linear_fc_before <- fc_v0_linear
+
+
+fc_v0_arima <- fc_v0_arima |>
+  filter(month(DateIndex) == 1)
+
+
+p <- ggplot(fc_v0_arima, aes(x=DateIndex)) +
+  geom_line(aes(y = PowerConsum, color = "PowerConsum")) +
+  geom_line(aes(y = linear_fc, color = "Linear FC")) +
+  geom_line(aes(y = linear_fc_before - PowerConsum, color = "Linear FCBF")) +
+  scale_color_manual(
+    name = "Legend",
+    values = c(
+      "PowerConsum" = "red",
+      "Linear FC" = "darkgreen",
+      "Linear FC" = "blue"
+    )
+  )
+
+p
+
+fit_arima <- readRDS("ensemble_model/version_5/arima_2021_2023.rds")
 ```
 
 

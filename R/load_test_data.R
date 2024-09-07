@@ -2,7 +2,7 @@
 
 load_test_data <- function(model_name, transformed_power_consum) {
   
-  
+  test_power_consum <- transformed_power_consum
   if (model_name == "arima_1_2021_2023.rds") {
     test_power_consum <- transformed_power_consum |>
       select(
@@ -52,6 +52,172 @@ load_test_data <- function(model_name, transformed_power_consum) {
         LastDayWasHolodiayAndNotWeekend,
         NextDayIsHolidayAndNotWeekend
       )
+  }
+  
+  if (model_name == "arima_8_2021_2023.rds") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        WorkDay,
+        Holiday,
+        MeanLastWeek,
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        LastDayWasHolodiayAndNotWeekend,
+        NextDayIsHolidayAndNotWeekend
+      )
+  }
+  
+  if (model_name == "arima_7_2021_2023.rds") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        LastDayWasHolodiayAndNotWeekend,
+        NextDayIsHolidayAndNotWeekend,
+        WorkDay
+      )
+  }
+  
+  if (model_name %in% c("version_1", 
+                        "version_2", "version_3",
+                        "version_4", "version_5",
+                        "version_6")) {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        WorkDay,
+        EndOfTheYear,
+        FirstWeekOfTheYear, 
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        Holiday,
+        PowerConsum,
+        WorkdayHolidayWeekend,
+        Hour,
+        HolidaySmoothed
+      )
+  }
+  
+  if (model_name == "version_0") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        WorkDay,
+        EndOfTheYear,
+        FirstWeekOfTheYear, 
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        Holiday,
+        PowerConsum,
+        WorkdayHolidayWeekend,
+        Hour,
+        HolidaySmoothed
+      )
+  }
+  
+  if (model_name == "version_7") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        WorkDay,
+        EndOfTheYear,
+        FirstWeekOfTheYear, 
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        Holiday,
+        PowerConsum,
+        WorkdayHolidayWeekend,
+        Hour,
+        HolidaySmoothed
+      ) |>
+      mutate(HolidaySmoothed = Holiday + 0.5*sin(2 * pi * (as.numeric(Hour)+1) / 24))
+    
+  }
+    
+  if (model_name == "version_8") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        WorkDay,
+        EndOfTheYear,
+        FirstWeekOfTheYear, 
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        Holiday,
+        PowerConsum,
+        WorkdayHolidayWeekend,
+        Hour,
+        HolidayExtended,
+        HolidaySmoothed
+      ) |>
+      mutate(HolidaySmoothed = HolidayExtended + 0.5*sin(2 * pi * (as.numeric(Hour)+1) / 24))
+  
+  }
+  
+  if (model_name == "version_5") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        WorkDay,
+        EndOfTheYear,
+        FirstWeekOfTheYear, 
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        Holiday,
+        PowerConsum,
+        WorkdayHolidayWeekend,
+        Hour,
+        HolidayExtended,
+        HolidaySmoothed
+      )
+  }
+  
+  if (model_name == "version_10") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        WorkDay,
+        EndOfTheYear,
+        FirstWeekOfTheYear, 
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        Holiday,
+        PowerConsum,
+        WorkdayHolidayWeekend,
+        Hour,
+        HolidayExtended,
+        HolidaySmoothed
+      )
+  }
+  
+  if (model_name == "version_9") {
+    test_power_consum <- transformed_power_consum |>
+      select(
+        MeanLastWeek,
+        WorkDay,
+        EndOfTheYear,
+        FirstWeekOfTheYear, 
+        MeanLastTwoDays,
+        MaxLastOneDay,
+        MinLastOneDay,
+        Holiday,
+        PowerConsum,
+        WorkdayHolidayWeekend,
+        Hour,
+        HolidayExtended,
+        HolidaySmoothed
+      ) |>
+      mutate(HolidaySmoothed = Holiday + 0.25*sin(2 * pi * (as.numeric(Hour)+1) / 24))
+    
   }
 
   return (test_power_consum)

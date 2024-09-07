@@ -8,7 +8,7 @@ plot_raw_data <- function(df, x, y, color, missing_value, file_name) {
     filter(!!sym(missing_value) == TRUE)
   
   p <- ggplot(df, aes(x = !!sym(x), y = !!sym(y))) +
-    geom_line(aes(color = "Regulaere Zeitreihe"), lwd = 0.1) +
+    geom_line(aes(color = "Regulaere Zeitreihe"), lwd = 0.1, alpha=0.5) +
     geom_point(
       data = duplicated_data,
       aes(
@@ -30,8 +30,8 @@ plot_raw_data <- function(df, x, y, color, missing_value, file_name) {
     scale_color_manual(
       values = c(
         name = " ",
-        "Regulaere Zeitreihe" = "#000000",
-        "Duplikate" = "orange",
+        "Regulaere Zeitreihe" = "black",
+        "Duplikate" = "darkred",
         "Fehlende Werte" = "#FF0000"
       ),
       labels = c(
@@ -41,10 +41,10 @@ plot_raw_data <- function(df, x, y, color, missing_value, file_name) {
       )
     ) +
     labs(x = "Zeitstempel", y = "Stromverbrauch [MW]", color = "") +
-    theme(legend.position = "bottom") + 
+    theme(legend.position = "bottom") +
     guides(color = guide_legend(override.aes = list(lwd = 3, size = 3)))
+    
   
-  p
   
   ggsave(
     file_name,

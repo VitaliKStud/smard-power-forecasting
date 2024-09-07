@@ -3,12 +3,13 @@ plot_forecast <- function(all_forecasts, metric_results, cleaned_power_consum, r
   
   best_forecast <- metric_results |>
     filter(!(.model == "SMARD")) |>
+    filter(ensembled == FALSE) |>
     filter(MAPE == min(MAPE[MAPE > 0])) |>
     slice(1) |>
     select(.model)
   
+  
   name_of_best_model <- best_forecast$.model
-  name_of_best_model <- "arima_6_2021_2023.rds"
   
   print("Best Model is:")
   print(name_of_best_model)
@@ -26,6 +27,7 @@ plot_forecast <- function(all_forecasts, metric_results, cleaned_power_consum, r
     filter(year(DateIndex) == 2024)
   
   filtered_power_consum <- cleaned_power_consum |>
+    mutate(PowerConsum = PowerConsum) |>
     filter(day(DateIndex) < days_to_plot) |>
     filter((year(DateIndex) == 2024 & month(DateIndex) <= month_to_plot)  
            | (year(DateIndex) == 2023 & month(DateIndex) == 12))
@@ -84,7 +86,7 @@ plot_forecast <- function(all_forecasts, metric_results, cleaned_power_consum, r
         name = " ",
         "Feiertag\nKein Wochenende" = "#FF9100",
         "Kein Feiertag\nKein Wochenende" = "#2E9FDF",
-        "Kein Feiertag\nWochenende" = "#FC1E07"
+        "Kein Feiertag\nWochenende" = "#FC4E07"
       )) +
     theme(legend.position = "bottom", strip.text = element_text(size = 12)) +
     guides(color = guide_legend(override.aes = list(lwd = 3, size = 2), title = " "),
