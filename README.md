@@ -569,6 +569,66 @@ Figure 13 LHM + DHR Model representation
 
 ## Results
 
+    ensembled_fc <- load_ensembled_models(
+      days_to_forecast = 40,
+      months_to_forecast = 6,
+      year_to_forecast = 2024,
+      starting_month = 1,
+      real_data = cleaned_power_consum,
+      smard_fc = cleaned_smard_pred,
+      model_path = "ensemble_model"
+    )
+    all_forecasts_ensembled <- ensembled_fc$all_forecasts
+    raw_fc_ensembled <- ensembled_fc$raw_forecasts
+    
+    fc <- load_all_model_results(
+      days_to_forecast = 40,
+      months_to_forecast = 6,
+      year_to_forecast = 2024,
+      starting_month = 1,
+      smard_fc = cleaned_smard_pred,
+      real_data = cleaned_power_consum
+    )
+    
+    all_forecasts <- fc$combined_forecasts
+    raw_fc <- fc$raw_forecasts
+    
+    
+    metric_results <- calculate_metrics(fc_data = all_forecasts, fc_data_ensembled=all_forecasts_ensembled)
+
+    # Plot best Model for single Models
+    name_of_best_model_for_single_model <- plot_forecast(
+      all_forecasts = all_forecasts,
+      metric_results = metric_results,
+      cleaned_power_consum = cleaned_power_consum,
+      raw_fc = raw_fc,
+      month_to_plot = 1,
+      days_to_plot = 40
+    )
+    
+    # Plot best Model for ensembled Models
+    name_of_best_model_ensembled <- plot_forecast_ensembled(
+      all_forecasts = all_forecasts_ensembled,
+      metric_results = metric_results,
+      cleaned_power_consum = cleaned_power_consum,
+      month_to_plot = 1,
+      days_to_plot = 40
+    )
+    
+    # Residuals Compared with SMARD
+    plot_compare_with_smard(
+      all_forecasts = all_forecasts_ensembled, 
+      name_of_best_model = name_of_best_model_ensembled
+      )
+    
+    
+    # LHM DHM representation
+    plot_representation_of_lhm_dhm_components(path_dhm = "ensemble_model/version_5/arima_2021_2023.rds",
+                                              path_lhm = "ensemble_model/version_5/holiday_effect_2021_2023.rds",
+                                              from_month = 1,
+                                              to_month = 1,
+                                              raw_fc_ensembled = raw_fc_ensembled)
+
 A solid score of MAPE 3.8% for version_5 (LHM + DHR Model).  
 
 
