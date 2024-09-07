@@ -23,7 +23,7 @@ this code on a updated Version of SMARD-Data.
 
 ---
 
-# Features and Dataset
+# Features and Raw Dataset
 
 ## Load data with generated features
 Try to work in example/ folder for beginning.
@@ -112,7 +112,7 @@ big enough and because there are only few missing values.). The first value was 
 ![TEST](example/plots/raw_power_consum.png)
 Figure 1 Raw Power-Consum
 
-# Year, Month, Week, Day, Hour
+# Features Analysis
 
     local_name_colors <- c(
       "Christi Himmelfahrt" = palette()[2],
@@ -339,55 +339,107 @@ Figure 1 Raw Power-Consum
       day_of_week = "Weekday"
     )
     
-## Raw Dataset, yearly representation
+Following sections will go more and more in detail of the data. We will start here with the yearly
+representation.
+
+---
+## Yearly representation
 
 Figure 2 is yearly representation of the years 2015-2024. We can notice here, that in
 the beginning of the year there is an increase of Power-Consum and in the end of the year
-there is a decrease (Christmas, New-year).
+there is a decrease (Christmas, New-year). Overall looks like a smile-shape or a bow.
 
 ![TEST](example/plots/raw_years.png)
 Figure 2 Raw Power-Consum - Years
 
-The boxplot combination of all years we can see the pattern in more detail. Figure 3 shows this
-pattern. Beginning and the end of a year is represented in red.
+Let's try to aggregate all the years and split then into weeks. 
+The boxplots in Figure 3 combine all years. We can see the pattern in more detail. 
+Beginning and the end of a year is represented in red and shows a decrease from the regular "smile-shape".
 ![TEST](example/plots/raw_week.png)
 Figure 3 Raw Power-Consum - Weeks
 
+---
+## Monthly representation
 
-# Raw Dataset, monthly representation
-
-Figure 4 is the monthly representation of the years 2018. Here we can observe in more detail
-the end of the year. Around 24th December, there is a decrease of Power-Consum.
+Let's go more in detail and look into the year 2018 for example. Figure 4 is the monthly representation 
+of the year 2018. Here we can observe in more detail
+the end of the year. Around 24th December, there is a decrease of Power-Consum. Also notable here are the weekends
+and the holidays (red). A decrease for all weekends and for all holidays.
 
 ![TEST](example/plots/raw_month.png)
 Figure 4 Raw Power-Consum - Monthly
 
-## Day of the week effect
+---
+
+## Hourly representation
+
+We could go even further and check out the hourly representation of the data. Figure 5 shows
+the aggregated boxplot for every hour. There is also a decrease in the nighttime (21:00-06:00)
+and an increase in the daytime / work-time (06:00-21:00). Also a pattern that needs to be included 
+in the model.
+
+![TEST](example/plots/hour_boxplot.png)
+Figure 5 Boxplot of the Power-Consum - Hourly
+
+---
+
+## Weekdays
+
+Let's talk weekdays. As assumed in the weekend PowerConsum decreses. "Durchschnitt" is the mean. Figure 6 shows
+all weekdays (aggregated) over the years. There is a decrease of ~10.000 MW for weekends.
 
 ![TEST](example/plots/weekday_boxplot.png)
 Figure 6 Raw Power-Consum - Weeks
 
 
-## Raw Dataset, daily representation
-
-Figure 7 is the hourly representation of the years 2015-2018. We can notice here, that in 
-the night (20:00-06:00) there is a lower Power-Consum. In the Day-Time there is a higher Power-Consum.
-Between (13:00-20:00) there is a pattern for almost all days (see also Figure 3). In the middle
-of the peak there is a decrease and an increase again. This needs to be tracked by the model correctly.
-
-![TEST](example/plots/hour_boxplot.png)
-Figure 7 Raw Power-Consum - Hourly
-
-# Holidays
+## Holidays
 
 Figure 8 shows the holiday effect. "Durchschnitt" is the mean Power-Consum over
-years. There is a significant increase of Power-Consum for "Working-Days" (black) compared with holidays.
+years. There is a significant increase of Power-Consum for "Working-Days" (black) compared with holidays (red).
+We could assume here that holidays acts like weekends for the Power-Consum".
 
 ![TEST](example/plots/holiday_boxplot.png)
-Figure 8 Holiday Effect
+Figure 6 Power-Consum - Holidays
 
+Figure 7 represent different behaviours for different days. There are 4 categories. "Feiertag Kein Wochenende" means it 
+is a holiday, but not a weekend. "Feiertag Wochenende" means it is a holiday and a weekend. "Kein Feiertag Kein Wochenende"
+means it is a regular working day and "Kein Feiertag Wochenende" means it is just the weekend. We can observe
+similar distributions for not regular working days as assumed.
 
-## Features
+![TEST](example/plots/workday_holiday_weekend_histogram.png)
+Figure 7 Power-Consum - Different Effects
+
+## Lagged Values
+
+Lagged values like MeanLastTwoDays, MeanLastWeek, MaxLastOneDay and MinLastOneDay are generated features. 
+
+Similar as discussed in DOI: [10.1109/TPWRS.2011.2162082](https://ieeexplore.ieee.org/document/5985500) - Short-Term Load Forecasting Based on a Semi-Parametric Additive Model
+
+Figures 8-11 represent this lagged values against the actual PowerConsumption.
+
+There is a light correlation for this generated features. 
+
+| Feature                                  | Correlation with PowerConsum |
+|------------------------------------------|------------------------------|
+| HolidaySmoothed                          | -0.556194                    |
+| MeanLastWeek                             | 0.389044                     |
+| MeanLastTwoDays                          | 0.201253                     |
+| MaxLastOneDay                            | 0.320193                     |
+| MinLastOneDay                            | 0.348583                     |
+
+![TEST](example/plots/MeanLastTwoDays.png)
+Figure 8 Power-Consum - MeanLastTwoDays
+
+![TEST](example/plots/MeanLastWeek.png)
+Figure 9 Power-Consum - MeanLastWeek
+
+![TEST](example/plots/MaxLastOneDay.png)
+Figure 10 Power-Consum - MaxLastOneDay
+
+![TEST](example/plots/MinLastOneDay.png)
+Figure 11 Power-Consum - MinLastOneDay
+
+## Features and Modeling
 
 Within the exploration there were found few features, that are influencing Power-Consum:
 
@@ -398,7 +450,6 @@ Within the exploration there were found few features, that are influencing Power
 - Max Power-Consum of last day
 - Min Power-Consum of last day
 
-Similar as discussed in DOI: [10.1109/TPWRS.2011.2162082](https://ieeexplore.ieee.org/document/5985500) - Short-Term Load Forecasting Based on a Semi-Parametric Additive Model
 
 ## Comlex seasonality
 
