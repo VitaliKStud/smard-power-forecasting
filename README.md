@@ -448,7 +448,7 @@ Figure 10 Power-Consum - MaxLastOneDay
 ![TEST](example/plots/MinLastOneDay.png)
 Figure 11 Power-Consum - MinLastOneDay
 
-## ACF PACF and STL decomposition plots / complex seasonality
+## ACF PACF / complex seasonality
 
 There is a complex seasonality. For the hourly resolution there is a yearly, weekly and a daily 
 seasonality. Which needs to be tracked by the model. The solution here is as discussed in
@@ -701,7 +701,25 @@ Figure 18 Residuals LHM + DHR
 | 36    | naive_2021_2023.rds     | 14699.338 | 20.797370 | 12130.587 | FALSE     |
 | 37    | drift_2021_2023.rds     | 14763.692 | 20.917883 | 12200.002 | FALSE     |
 
+
+NOTE: 
+- 2020-2022 to forecast 2023 for the best model evaluation (MAPE was here ~4.2%)
+- 2019-2021 to forecast 2022 for the best model evaluation (MAPE was here ~3.9%)
+
+Check  example/ensemble_model_2022_forecast or example/ensemble_model_2023_forecast
+
 ---
 
 # Conclusion
+
+- A LHM can add value to the DHR models, especially for dummy-variables. 
+- Fourier-Terms helps a lot by describing complex seasonality.
+- The holiday-effect and weekends got a high value for forecasting Power Consumption in germany.
+- Did not beat the SMARD model, but still solid for a single time-series.
+
+We could include more factors like:
+- GDP over the years
+- DAX
+- Weather
+- Population over the years
 
