@@ -2,10 +2,22 @@
 
 ```{r setup, include=FALSE}
 
+# NOT SURE IF THIS ARE USED OR NOT
 # Load Packages
-library(fhswf)
+# library(fhswf)
+# library(tsibbledata)
+# library(broom)
+# library(readr)
+# library(datasets)
+# library(timeDate)
+# library(qlcal)
+# library(corrplot)
+# library(mgcv)
+# library(MEFM)
+# library(TTR)
+
+library(devtools)
 library(ggplot2)
-library(tsibbledata) #0.4.1
 library(dplyr)
 library(tsibble)
 library(fable)
@@ -13,23 +25,15 @@ library(fabletools)
 library(feasts)
 library(distributional)
 library(lubridate)
-library(broom)
-library(readr)
 library(tidyr)
-library(datasets)
 library(forecast)
-library(timeDate)
-library(qlcal)
-library(devtools)
 library(zoo)
-library(corrplot)
 library(scales)
 library(fable.prophet)
-library(mgcv)
-library(MEFM)
-library(TTR)
+
 load_all()
 # devtools::document()
+
 ```
 
 # Define data-paths and load german holidays

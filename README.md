@@ -1,8 +1,8 @@
 # smard-power-forecasting
 
-This repository is for forecasting german energy power consumption.
+This repository is for forecasting german power consumption.
 
-Based opn and inspired from:
+Based and inspired from:
 
 - [Forecasting: Principles and Practice](https://otexts.com/fpp3/)
 - DOI: [10.1109/TPWRS.2011.2162082](https://ieeexplore.ieee.org/document/5985500) - Short-Term Load Forecasting Based on a Semi-Parametric Additive Model
@@ -16,10 +16,60 @@ Data source: [SMARD](https://www.smard.de/home/downloadcenter/download-marktdate
 
 Put all dowloaded files into:
 
-    /example/dataset # there is already use dataset included
+    /example/dataset # there is already used dataset included if you pull, but you could update
 
 Check the [forecast.Rmd](example/forecast.Rmd) file to see how you can run
 this code on a updated Version of SMARD-Data.
+
+Used Libraries:
+
+    # Probably needed
+    # Load Packages
+    # library(fhswf)
+    # library(tsibbledata)
+    # library(broom)
+    # library(readr)
+    # library(datasets)
+    # library(timeDate)
+    # library(qlcal)
+    # library(corrplot)
+    # library(mgcv)
+    # library(MEFM)
+    # library(TTR)
+
+    packages <- c(
+      "devtools",
+      "ggplot2",
+      "dplyr",
+      "tsibble",
+      "fable",
+      "fabletools",
+      "feasts",
+      "distributional",
+      "lubridate",
+      "tidyr",
+      "forecast",
+      "zoo",
+      "scales",
+      "fable.prophet"
+    )
+    install.packages(packages)
+
+
+    library(devtools)
+    library(ggplot2)
+    library(dplyr)
+    library(tsibble)
+    library(fable)
+    library(fabletools)
+    library(feasts)
+    library(distributional)
+    library(lubridate)
+    library(tidyr)
+    library(forecast)
+    library(zoo)
+    library(scales)
+    library(fable.prophet)
 
 ---
 
@@ -94,23 +144,23 @@ Following features were generated from the dataset and the Holiday API:
 | 35    | MinLastOneDay                         | Min PowerConsum of the last Day (Shift: 24*2-25)                 |
 
  
-In this study there is a dataset for Power-Consum in germany from [SMARD](https://www.smard.de/home/downloadcenter/download-marktdaten/) for
+In this study there is a dataset for power consum in germany from [SMARD](https://www.smard.de/home/downloadcenter/download-marktdaten/) for
 the years 2015 - 2024.
 
 Figure 1 shows the raw dataset with missing values (red), duplicated timestamps (darkred) and
-Power-Consum over time (grey), hourly resolution. With one missing values and one duplicate every year it was
+Power-Consum over time (grey), hourly resolution. With one missing value and one duplicate every year it was
 easy to clean up the dataset. Overall an almost clean set. After cleaning up the dataset there are
-plausible observations for the Power-Consum:
+plausible observations for the power consum:
 
 - 8760 Observations for a regular year (24*365)
 - 8784 Observations for a leap year (24*366)
-- Remainded 4559 observations for the last year (2024), year is not complet
+- Remainded 4559 observations for the last year (2024), year is not completed 
 
 There is a simple approach to fill the gaps via taking the last observation (possible, because the resolution is
-big enough and because there are only few missing values.). The first value was kept for duplicates.
+big enough and because there are only few missing values). The first value was kept for duplicates.
 
 ![TEST](example/plots/raw_power_consum.png)
-Figure 1 Raw Power-Consum
+Figure 1 Raw power consum
 
 # Features Analysis
 
@@ -346,28 +396,28 @@ representation.
 ## Yearly representation
 
 Figure 2 is yearly representation of the years 2015-2024. We can notice here, that in
-the beginning of the year there is an increase of Power-Consum and in the end of the year
+the beginning of the year there is an increase of power consum and in the end of the year
 there is a decrease (Christmas, New-year). Overall looks like a smile-shape or a bow.
 
 ![TEST](example/plots/raw_years.png)
-Figure 2 Raw Power-Consum - Years
+Figure 2 Power consum, every year as a single facet
 
-Let's try to aggregate all the years and split then into weeks. 
+Let's try to aggregate all the years and split them into weeks. 
 The boxplots in Figure 3 combine all years. We can see the pattern in more detail. 
 Beginning and the end of a year is represented in red and shows a decrease from the regular "smile-shape".
 ![TEST](example/plots/raw_week.png)
-Figure 3 Raw Power-Consum - Weeks
+Figure 3 Power consum weekly aggregated data
 
 ---
 ## Monthly representation
 
 Let's go more in detail and look into the year 2018 for example. Figure 4 is the monthly representation 
 of the year 2018. Here we can observe in more detail
-the end of the year. Around 24th December, there is a decrease of Power-Consum. Also notable here are the weekends
+the end of the year. Around 24th December, there is a decrease of power consum. Also notable here are the weekends
 and the holidays (red). A decrease for all weekends and for all holidays.
 
 ![TEST](example/plots/raw_month.png)
-Figure 4 Raw Power-Consum - Monthly
+Figure 4 Power consum, every month as a single facet
 
 ---
 
@@ -379,36 +429,36 @@ and an increase in the daytime / work-time (06:00-21:00). Also a pattern that ne
 in the model.
 
 ![TEST](example/plots/hour_boxplot.png)
-Figure 5 Boxplot of the Power-Consum - Hourly
+Figure 5 Power consum hourly aggregated data
 
 ---
 
 ## Weekdays
 
-Let's talk weekdays. As assumed in the weekend PowerConsum decreses. "Durchschnitt" is the mean. Figure 6 shows
+Let's talk about weekdays. As assumed in the weekend power consum decreases. "Durchschnitt" is the mean. Figure 6 shows
 all weekdays (aggregated) over the years. There is a decrease of ~10.000 MW for weekends.
 
 ![TEST](example/plots/weekday_boxplot.png)
-Figure 6 Raw Power-Consum - Weeks
+Figure 6 Power consum "day-of-week-effect"
 
 ---
 
 ## Holidays
 
-Figure 8 shows the holiday effect. "Durchschnitt" is the mean Power-Consum over
-years. There is a significant increase of Power-Consum for "Working-Days" (black) compared with holidays (red).
+Figure 8 shows the holiday effect. "Durchschnitt" is the mean power consum over
+years. There is a significant increase of power consum for "Working-Days" (darkgrey) compared with holidays (red).
 We could assume here that holidays acts like weekends for the Power-Consum".
 
 ![TEST](example/plots/holiday_boxplot.png)
-Figure 6 Power-Consum - Holidays
+Figure 6 Power consum "holiday-effect"
 
 Figure 7 represent different behaviours for different days. There are 4 categories. "Feiertag Kein Wochenende" means it 
 is a holiday, but not a weekend. "Feiertag Wochenende" means it is a holiday and a weekend. "Kein Feiertag Kein Wochenende"
 means it is a regular working day and "Kein Feiertag Wochenende" means it is just the weekend. We can observe
-similar distributions for not regular working days as assumed.
+similar distributions for **not** regular working days as assumed.
 
 ![TEST](example/plots/workday_holiday_weekend_histogram.png)
-Figure 7 Power-Consum - Different Effects
+Figure 7 Power consum "Different-Effects" compared
 
 ---
 
@@ -418,7 +468,7 @@ Lagged values like MeanLastTwoDays, MeanLastWeek, MaxLastOneDay and MinLastOneDa
 
 Similar as discussed in DOI: [10.1109/TPWRS.2011.2162082](https://ieeexplore.ieee.org/document/5985500) - Short-Term Load Forecasting Based on a Semi-Parametric Additive Model
 
-Figures 8-11 (red are not working days) represent this lagged values against the actual PowerConsumption.
+Figures 8-11 (red are not working days) represent this lagged values against the actual power consum.
 
 There is a light correlation for this generated features. 
 
@@ -465,7 +515,7 @@ just finding PDQ and pdq components by
 itself. Also the training time increases dramatically without the fourier-terms. 
 
 ![TEST](example/plots/power_consum_acf_pacf.png)
-Figure 12 Power-Consum - ACF PACF Plot
+Figure 12 Power-Consum - ACF PACF Plot of raw power consum
 
 ---
 
@@ -493,7 +543,7 @@ Best feature combination found in this work are:
 To compare the models we use metrics MAE and MAPE. SMARD is the model of "Bundesnetzagentur" from 
 the SMARD page. Prophet model was also tried out, performed solid, but not good enough.
 
-The SMARD forecasted values reached a MAPE of 3.6%. 
+The SMARD forecasted values reached a MAPE of 3.6%. <- NOT IN THIS STUDY.
 
 Training-Data:
 
@@ -503,7 +553,7 @@ Training-Data:
 
 The best model found so far war LHM + DHR (linear-harmonic-model + dynamic-harmonic-regression)
 
-The idea ist to ensemble a linear model with ARIMA model. Because it was hard for ARIMA model
+The idea is to ensemble a linear model with ARIMA model. Because it was hard for ARIMA model
 to deal with dummy-variables for Holidays. So the ensembled model helped out. 
 
 ---
@@ -550,7 +600,7 @@ to deal with dummy-variables for Holidays. So the ensembled model helped out.
 
 We could visualize the effect and how the model works. Figure 13 shows the idea behind this model. 
 First of all we fit the LHM model and calculate the residuals. Train the DHR model by the residuals 
-and sum up both. It's kinda mirror on the LHM and push the values back on the top.
+and sum up both. It's kinda mirror on the LHM and push the values back to the top.
 
 For the LHM model we use here a simple approach a sinus curve that repeats every 24 hours and decrease or
 increase on Holidays or workdays. 
@@ -635,27 +685,27 @@ There are significant outliers for the holidays, even though there was a dummy-v
 it couldn't catch the holidays correctly. 
 
 ![TEST](example/plots/real_to_fc_arima_14_2021_2023.rds.png)
-Figure 14 Forecast vs Actual Values ARIMA
+Figure 14 Forecast vs Actual Values ARIMA (DHR, arima_14), as a single model
 
 On the other hand the LHM + DHR Model shows a better performence for the holidays. Figure 15 represents
 it.
 
 ![TEST](example/plots/real_to_fc_version_5.png)
-Figure 15 Forecast vs Actual Values LHM + DHR
+Figure 15 Forecast vs Actual Values LHM + DHR, ensembled model
 
 Figure 16 shows the forecast for january 2024. It looks reasonable.
 
 ![TEST](example/plots/version_5.png)
-Figure 16 Forecast vs Actual Values LHM + DHR
+Figure 16 Forecast vs Actual Values LHM + DHR for january 2024
 
 Also the Residuals for the model compared with the SMARD model looks fine. There are few spikes,
 that could be significant and may be prepared better by modeling. But overall a solid result.
 
 ![TEST](example/plots/raw_smard_lhr_dhr_res.png)
-Figure 17 Residuals LHM + DHR
+Figure 17 Residuals LHM + DHR for january - july 2024
 
 ![TEST](example/plots/smard_lhm_dhr_res_histogram.png)
-Figure 18 Residuals LHM + DHR
+Figure 18 Residuals LHM + DHR for january - july 2024 
 
 
 | Index | Model Name              | RMSE      | MAPE      | MAE       | Ensembled |
