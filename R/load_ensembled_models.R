@@ -1,6 +1,17 @@
+#' Loading all ensembled Models
+#'
+#' This function will load all LHM and DHM models and combine them together, make forecasts.
+#'
+#' @param days_to_forecast i.r. can be more then 32 will forecast max. of this days
+#' @param months_to_forecast Will Forecast the number of this months
+#' @param year_to_forecast Will Forecast this year
+#' @param starting_month Should be 1 (January) if your Fit ends on 31.12
+#' @param real_data Check \link{example/forecast.Rmd} should be cleaned_power_consum
+#' @param smard_fc Data of smard_fc check \link{example/forecast.Rmd} should be cleaned_smard_pred
+
 load_ensembled_models <- function(days_to_forecast, months_to_forecast,
                                   year_to_forecast, starting_month, real_data,
-                                  path_to_safe, smard_fc) {
+                                  smard_fc) {
   
     all_forecasts <- list()
     raw_forecasts <- list()
@@ -26,8 +37,6 @@ load_ensembled_models <- function(days_to_forecast, months_to_forecast,
           full_path_arima <- paste0("ensemble_model/",version,"/",file)
         }
       }
-      # full_path_arima <- "ensemble_model/version_11/arima_2019_2021.rds"
-      # full_path_holiday <- "ensemble_model/version_11/holiday_effect_2019_2021.rds"
       fit_arima <- readRDS(full_path_arima)
       fit_holiday <- readRDS(full_path_holiday)
 

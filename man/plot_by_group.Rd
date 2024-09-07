@@ -4,7 +4,16 @@
 \alias{plot_by_group}
 \title{Creat a faceplot for a group.}
 \usage{
-plot_by_group(filtered_power_consum, group_name, file_name, colors, title)
+plot_by_group(
+  filtered_power_consum,
+  group_name,
+  file_name,
+  colors,
+  title,
+  y,
+  x_label,
+  y_label
+)
 }
 \arguments{
 \item{filtered_power_consum}{time-series.}
@@ -14,55 +23,15 @@ plot_by_group(filtered_power_consum, group_name, file_name, colors, title)
 \item{file_name}{Character, the name of the file you want to save.}
 
 \item{colors}{Dictionary, define your own color for a specific group.}
-}
-\value{
-None
+
+\item{title}{Title of the Plot}
+
+\item{y}{Y-Values}
+
+\item{x_label}{Label of X}
+
+\item{y_label}{Label of Y}
 }
 \description{
 This function will create plots for a selected group from a timeseries.
-}
-\note{
--
-}
-\examples{
-\dontrun{
-local_name_colors <- c(
-"Christi Himmelfahrt" = "#E69F00", 
-"Erster Weihnachtstag" = "#E69F00",  
-"Karfreitag" = "#E69F00", 
-"Neujahr" = "#E69F00",
-"Ostermontag" = "#E69F00",
-"Pfingstmontag" = "#E69F00",
-"Reformationstag" = "#E69F00",
-"Tag der Arbeit" = "#E69F00",
-"Tag der Deutschen Einheit" = "#E69F00",
-"Zweiter Weihnachtstag" = "#E69F00",
-"Working-Day" = "darkgrey"
-)
-
-week_colors <- c(
-  "Mo" = "darkgrey",
-  "Di" = "darkgrey",
-  "Mi" = "darkgrey",
-  "Do" = "darkgrey",
-  "Fr" = "darkgrey",
-  "Sa" = "#E69F00",
-  "So" = "#E69F00"
-)
-
-plot_by_group(filtered_power_consum, 
-              group_name = "localName",
-              file_name = "test.png",
-              colors = local_name_colors,
-              title = "Arbeitstage"
-              )
-
-plot_by_group(filtered_power_consum, 
-             group_name = "Wochentag",
-             file_name = "test2.png",
-             colors = week_colors,
-             title = "Wochentage")
-}
-
-
 }

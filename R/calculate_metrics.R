@@ -1,3 +1,14 @@
+#' Calculate Metrics
+#'
+#' This function will calculate MAPE, MAE and RMSE for all your Forecasts
+#'
+#' @param fc_data class: "tbl_df" "tbl" "data.frame" with columns (.mean, PowerConsum, DateIndex).
+#' Use \link{load_all_model_results} to get data from the .rds models.
+#' @param fc_data_ensembled class: "tbl_df" "tbl" "data.frame" with columns (.mean, PowerConsum, DateIndex, .model).
+#' Use \link{load_ensembled_models} to get data from ensembled .rds models.
+
+
+
 
 calculate_metrics <- function(fc_data, fc_data_ensembled){
   filtered_real_data <- fc_data |>

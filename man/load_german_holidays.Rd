@@ -4,7 +4,7 @@
 \alias{load_german_holidays}
 \title{Load German Holidays}
 \usage{
-load_german_holidays(from_year, to_year)
+load_german_holidays(from_year, to_year, location)
 }
 \arguments{
 \item{from_year}{Integer. The start year for which to retrieve holidays.}

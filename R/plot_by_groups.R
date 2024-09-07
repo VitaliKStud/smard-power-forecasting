@@ -6,55 +6,11 @@
 #' @param group_name Character, the column you want to group by.
 #' @param file_name Character, the name of the file you want to save.
 #' @param colors Dictionary, define your own color for a specific group.
-#' @param colors Dictionary, define your own color for a specific group.
+#' @param title Title of the Plot
+#' @param y Y-Values
+#' @param x_label Label of X
+#' @param y_label Label of Y
 
-#' @return None
-#'
-#' @examples
-#' \dontrun{
-#' local_name_colors <- c(
-#' "Christi Himmelfahrt" = "#E69F00", 
-#' "Erster Weihnachtstag" = "#E69F00",  
-#' "Karfreitag" = "#E69F00", 
-#' "Neujahr" = "#E69F00",
-#' "Ostermontag" = "#E69F00",
-#' "Pfingstmontag" = "#E69F00",
-#' "Reformationstag" = "#E69F00",
-#' "Tag der Arbeit" = "#E69F00",
-#' "Tag der Deutschen Einheit" = "#E69F00",
-#' "Zweiter Weihnachtstag" = "#E69F00",
-#' "Working-Day" = "darkgrey"
-#' )
-#' 
-#' week_colors <- c(
-#'   "Mo" = "darkgrey",
-#'   "Di" = "darkgrey",
-#'   "Mi" = "darkgrey",
-#'   "Do" = "darkgrey",
-#'   "Fr" = "darkgrey",
-#'   "Sa" = "#E69F00",
-#'   "So" = "#E69F00"
-#' )
-#' 
-#' plot_by_group(filtered_power_consum, 
-#'               group_name = "localName",
-#'               file_name = "test.png",
-#'               colors = local_name_colors,
-#'               title = "Arbeitstage"
-#'               )
-#'
-#'plot_by_group(filtered_power_consum, 
-#'              group_name = "Wochentag",
-#'              file_name = "test2.png",
-#'              colors = week_colors,
-#'              title = "Wochentage")
-#'}
-
-# Call the function
-
-#' 
-#'
-#' @note -
 
 plot_by_group <- function(filtered_power_consum, group_name, file_name, colors, title, y,
                           x_label, y_label) {

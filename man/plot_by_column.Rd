@@ -4,7 +4,7 @@
 \alias{plot_by_column}
 \title{This function will create plots for a selected column.}
 \usage{
-plot_by_column(df, x, y, title, x_label, y_labe, file_name)
+plot_by_column(df, x, y, title, x_label, y_label, file_name)
 }
 \arguments{
 \item{df}{Your data as DataFrame or Time-Series.}
@@ -17,9 +17,9 @@ plot_by_column(df, x, y, title, x_label, y_labe, file_name)
 
 \item{x_label}{Label of x-axis.}
 
-\item{y_labe}{Label of y-axis.}
-
 \item{file_name}{Plot will be saved with this name.}
+
+\item{y_labe}{Label of y-axis.}
 }
 \value{
 None
