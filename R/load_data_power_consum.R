@@ -36,7 +36,7 @@ load_power_consum <- function(path) {
   
   
   names(raw_data)[names(raw_data) == "Datum.von"] <- "DateFrom"
-  names(raw_data)[names(raw_data) == "Gesamt..Netzlast...MWh..Berechnete.Auflösungen"] <- "PowerConsum"
+  colnames(raw_data)[3] <- "PowerConsum"
   
   
   raw_data <-  raw_data |>

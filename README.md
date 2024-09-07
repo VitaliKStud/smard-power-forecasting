@@ -16,15 +16,12 @@ Data source: [SMARD](https://www.smard.de/home/downloadcenter/download-marktdate
 
 Put all dowloaded files into:
 
-    /example/dataset
+    /example/dataset # there is already use dataset included
 
 Check the [forecast.Rmd](example/forecast.Rmd) file to see how you can run
 this code on a updated Version of SMARD-Data.
 
 ---
-
-## Table of Contents
-1. [Features and Raw Dataset](#Features and Raw Dataset)
 
 # Features and Raw Dataset
 

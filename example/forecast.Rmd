@@ -56,6 +56,7 @@ german_holidays <- german_holidays |>
 
 ```{r, echo=TRUE, message=FALSE}
 # Load Smard Predictions
+load_all()
 power_consum_smard_prediction_loaded <- load_power_consum(path=power_consum_smard_prediction_path)
 raw_smard_pred <- power_consum_smard_prediction_loaded$raw_data
 cleaned_smard_pred <- power_consum_smard_prediction_loaded$cleaned_data
