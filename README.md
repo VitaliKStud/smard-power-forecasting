@@ -23,6 +23,9 @@ this code on a updated Version of SMARD-Data.
 
 ---
 
+## Table of Contents
+1. [Features and Raw Dataset](#Features and Raw Dataset)
+
 # Features and Raw Dataset
 
 ## Load data with generated features
@@ -391,6 +394,7 @@ all weekdays (aggregated) over the years. There is a decrease of ~10.000 MW for 
 ![TEST](example/plots/weekday_boxplot.png)
 Figure 6 Raw Power-Consum - Weeks
 
+---
 
 ## Holidays
 
@@ -409,13 +413,15 @@ similar distributions for not regular working days as assumed.
 ![TEST](example/plots/workday_holiday_weekend_histogram.png)
 Figure 7 Power-Consum - Different Effects
 
+---
+
 ## Lagged Values
 
 Lagged values like MeanLastTwoDays, MeanLastWeek, MaxLastOneDay and MinLastOneDay are generated features. 
 
 Similar as discussed in DOI: [10.1109/TPWRS.2011.2162082](https://ieeexplore.ieee.org/document/5985500) - Short-Term Load Forecasting Based on a Semi-Parametric Additive Model
 
-Figures 8-11 represent this lagged values against the actual PowerConsumption.
+Figures 8-11 (red are not working days) represent this lagged values against the actual PowerConsumption.
 
 There is a light correlation for this generated features. 
 
