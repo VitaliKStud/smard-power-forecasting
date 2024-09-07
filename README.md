@@ -23,7 +23,10 @@ this code on a updated Version of SMARD-Data.
 
 ---
 
-## From raw to cleaned Dataset
+# Features and Dataset
+
+## Load data with generated features
+Try to work in example/ folder for beginning.
 
     # Define datapaths
     power_consum_path <- "dataset\\stunde_2015_2024\\Realisierter_Stromverbrauch_201501010000_202407090000_Stunde.csv"
@@ -42,8 +45,15 @@ this code on a updated Version of SMARD-Data.
     power_consum_loaded <- load_power_consum(path=power_consum_path)
     raw_power_consum <- power_consum_loaded$raw_data
     cleaned_power_consum <- power_consum_loaded$cleaned_data
+    
+    # Generate more features
+    cleaned_power_consum$localName[is.na(cleaned_power_consum$localName)] = "Working-Day"
+    cleaned_power_consum$MeanLastWeek <- rollapply(cleaned_power_consum$PowerConsum, width = 24*8, FUN = function(x) mean(x[1:(24*8-25)]), align = "right", fill = NA)
+    cleaned_power_consum$MeanLastTwoDays <- rollapply(cleaned_power_consum$PowerConsum, width = 24*3, FUN = function(x) mean(x[1:(24*3-25)]), align = "right", fill = NA)
+    cleaned_power_consum$MaxLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) max(x[1:(24*2-25)]), align = "right", fill = NA)
+    cleaned_power_consum$MinLastOneDay <- rollapply(cleaned_power_consum$PowerConsum, width = 24*2, FUN = function(x) min(x[1:(24*2-25)]), align = "right", fill = NA) 
 
-Following features were generated from the dataset:
+Following features were generated from the dataset and the Holiday API:
 
 | Index | Column Name                           | Description                                                      |
 |-------|---------------------------------------|------------------------------------------------------------------|
@@ -96,11 +106,239 @@ plausible observations for the Power-Consum:
 - 8784 Observations for a leap year (24*366)
 - Remainded 4559 observations for the last year (2024), year is not complet
 
+There is a simple approach to fill the gaps via taking the last observation (possible, because the resolution is
+big enough and because there are only few missing values.). The first value was kept for duplicates.
 
 ![TEST](example/plots/raw_power_consum.png)
 Figure 1 Raw Power-Consum
 
+# Year, Month, Week, Day, Hour
 
+    local_name_colors <- c(
+      "Christi Himmelfahrt" = palette()[2],
+      "Erster Weihnachtstag" = palette()[2],
+      "Karfreitag" = palette()[2],
+      "Neujahr" = palette()[2],
+      "Ostermontag" = palette()[2],
+      "Pfingstmontag" = palette()[2],
+      "Reformationstag" = palette()[2],
+      "Tag der Arbeit" = palette()[2],
+      "Tag der Deutschen Einheit" = palette()[2],
+      "Zweiter Weihnachtstag" = palette()[2],
+      "Regulärer Tag" = palette()[1]
+    )
+    
+    
+    week_colors <- c(
+      "Mo" = palette()[1],
+      "Di" = palette()[1],
+      "Mi" = palette()[1],
+      "Do" = palette()[1],
+      "Fr" = palette()[1],
+      "Sa" = palette()[2],
+      "So" = palette()[2]
+    )
+    
+    working_colors <- c("1" = "#2E9FDF", "0" = "#FC4E07")
+    
+    whw_colors <- c(
+      "Feiertag\nKein Wochenende" = "black",
+      "Kein Feiertag\nKein Wochenende" = "red",
+      "Kein Feiertag\nWochenende" = "orange",
+      "Feiertag\nWochenende" = "blue"
+    )
+    
+    p <- cleaned_power_consum |>
+        gg_tsdisplay(PowerConsum, plot_type = "partial", lag = 100)
+    
+    ggsave(
+      "plots/power_consum_acf_pacf.png",
+      plot = p,
+      width = 5.5,
+      height = 3.7,
+      dpi = 600
+    )
+    
+    plot_calculated_features(
+      cleaned_power_consum = cleaned_power_consum,
+      file_name = "plots/MinLastOneDay.png", 
+      x = "MinLastOneDay", 
+      y = "PowerConsum", 
+      x_label = "Minimaler Stromverbrauch vom letzten Tag [MW]",
+      y_label = "Stromverbrauch [MW]"
+    )
+    
+    plot_calculated_features(
+      cleaned_power_consum = cleaned_power_consum,
+      file_name = "plots/MaxLastOneDay.png", 
+      x = "MaxLastOneDay", 
+      y = "PowerConsum", 
+      x_label = "Maximaler Stromverbrauch vom letzten Tag [MW]",
+      y_label = "Stromverbrauch [MW]"
+    )
+    
+    plot_calculated_features(
+      cleaned_power_consum = cleaned_power_consum,
+      file_name = "plots/MeanLastWeek.png", 
+      x = "MeanLastWeek", 
+      y = "PowerConsum", 
+      x_label = "Durchschnittlicher Stromverbrauch der letzten 7 Tage [MW]",
+      y_label = "Stromverbrauch [MW]"
+    )
+    
+    
+    plot_calculated_features(
+      cleaned_power_consum = cleaned_power_consum,
+      file_name = "plots/MeanLastTwoDays.png", 
+      x = "MeanLastTwoDays", 
+      y = "PowerConsum", 
+      x_label = "Durchschnittlicher Stromverbrauch der letzten 2 Tage [MW]",
+      y_label = "Stromverbrauch [MW]"
+    )
+    
+    plot_histogram_by_group(
+      cleaned_power_consum,
+      group_name = "WorkdayHolidayWeekend",
+      file_name = "plots\\workday_holiday_weekend_histogram.png",
+      colors = whw_colors,
+      x="PowerConsum",
+      x_label = "Stromverbrauch [MW]",
+      y_label = "Häufigkeit",
+      name_0 = "Wochenende oder Feiertage",
+      name_1 = "Werktag"
+    )
+    
+    
+    plot_histogram_by_group(
+      cleaned_power_consum,
+      group_name = "WorkDay",
+      file_name = "plots\\workday_histogram.png",
+      colors = working_colors,
+      x="PowerConsum",
+      x_label = "Stromverbrauch [MW]",
+      y_label = "Häufigkeit",
+      name_0 = "Wochenende oder Feiertage",
+      name_1 = "Werktag"
+    )
+    
+    plot_histogram_by_group(
+      cleaned_power_consum,
+      group_name = "Holiday",
+      file_name = "plots\\holiday_histogram.png",
+      colors = working_colors,
+      x="PowerConsum",
+      x_label = "Stromverbrauch [MW]",
+      y_label = "Häufigkeit",
+      name_0 = "Werktag oder Wochenende",
+      name_1 = "Feiertag"
+    )
+    
+    plot_histogram_by_group(
+      cleaned_power_consum,
+      group_name = "HolidayAndWorkDay",
+      file_name = "plots\\holiday_workday_histogram.png",
+      colors = working_colors,
+      x="PowerConsum",
+      x_label = "Stromverbrauch [MW]",
+      y_label = "Häufigkeit",
+      name_0 = "Wochenende oder Werktag",
+      name_1 = "Feiertag am Werktag"
+    )
+    
+    plot_by_group(
+      cleaned_power_consum,
+      group_name = "HolidayName",
+      file_name = "plots\\holiday_boxplot.png",
+      colors = local_name_colors,
+      title = "Übersicht der einzelnen Feiertage",
+      y="PowerConsum",
+      y_label="Stromverbrauch [MW]",
+      x_label="Jahre"
+    )
+    
+    plot_by_group(
+      cleaned_power_consum,
+      group_name = "Weekday",
+      file_name = "plots\\weekday_boxplot.png",
+      colors = week_colors,
+      title = "Übersicht der einzelnen Wochentage",
+      y = "PowerConsum",
+      y_label="Stromverbrauch [MW]",
+      x_label="Jahre"
+    )
+    
+    plot_by_group(
+      cleaned_power_consum,
+      group_name = "WorkDay",
+      file_name = "plots\\workday_boxplot.png",
+      colors = working_colors,
+      title = "Übersicht, ob Feiertag (FALSE) oder Werktag (TRUE)",
+      y = "PowerConsum",
+      y_label="Stromverbrauch [MW]",
+      x_label="Jahre"
+    )
+    
+    
+    plot_by_column(
+      df = cleaned_power_consum,
+      x = "Hour",
+      y = "PowerConsum",
+      x_label = "Stunden",
+      y_label = "Stromverbrauch [MW]",
+      file_name = "plots\\hour_boxplot.png",
+      title = "Übersicht der einzelnen Stunden"
+    )
+    
+    plot_by_column(
+      df = cleaned_power_consum,
+      x = "Month",
+      y = "PowerConsum",
+      x_label = "Monate",
+      y_label = "Stromverbrauch [MW]",
+      file_name = "plots\\month_boxplot.png",
+      title = "Übersicht der einzelnen Monate"
+    )
+    
+    plot_by_column(
+      df = cleaned_power_consum,
+      x = "Week",
+      y = "PowerConsum",
+      x_label = "Woche",
+      y_label = "Stromverbrauch [MW]",
+      file_name = "plots\\week_boxplot.png",
+      title = "Übersicht der einzelnen Wochen"
+    )
+    
+    plot_by_column(
+      df = cleaned_power_consum,
+      x = "Year",
+      y = "PowerConsum",
+      x_label = "Jahr",
+      y_label = "Stromverbrauch [MW]",
+      file_name = "plots\\year_boxplot.png",
+      title = "Übersicht der einzelnen Jahre"
+    )
+    
+    plot_year_month_week_day(
+      df=cleaned_power_consum,
+      date_column="DateIndex",
+      y="PowerConsum",
+      from_year=2015,
+      to_year=2024,
+      from_week=0,
+      to_week=53,
+      year_for_week=2018,
+      from_day=1,
+      to_day=30,
+      month_for_day=4,
+      year_for_day=2018,
+      from_month=1,
+      to_month=12,
+      year_for_month=2018,
+      holiday="Holiday",
+      day_of_week = "Weekday"
+    )
+    
 ## Raw Dataset, yearly representation
 
 Figure 2 is yearly representation of the years 2015-2024. We can notice here, that in
